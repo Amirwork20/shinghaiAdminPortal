@@ -1,0 +1,159 @@
+{
+    "navbar": {
+      "home": "Home",
+      "allProducts": "All Products",
+      "deals": "Deals"
+    },
+    "search": {
+      "placeholder": "Search",
+      "button": "Search"
+    },
+    "productList": {
+      "allProducts": "All Products",
+      "recommendedProducts": "Recommended Products",
+      "searchResults": "Search Results",
+      "noProductsAvailable": "No Products Available"
+    },
+    "superDeals": {
+      "title": "Super Deals",
+      "hotDeal": "HOT DEAL",
+      "sold": "sold",
+      "viewDeal": "Order Now",
+      "noDealsAvailable": "No Deals Available"
+    },
+    "product": {
+      "freeDelivery": "Free Delivery",
+      "off": "OFF",
+      "vatIncluded": "VAT included",
+      "clickToView": "Click to view"
+    },
+    "footer": {
+      "contactUs": "Contact Us",
+      "companyInfo": "Website owned by Shams FZE SHARJAH",
+      "information": "Information",
+      "aboutUs": "About Us",
+      "unclaimableProducts": "Un-Claimable Products",
+      "whyUs": "Why Us?",
+      "newsletter": "Newsletter",
+      "emailPlaceholder": "Your email",
+      "subscribe": "Subscribe",
+      "followUs": "Follow us on social media",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfUse": "Terms of Use",
+      "legalEnquiryGuide": "User Information Legal Enquiry Guide",
+      "allRightsReserved": "All rights reserved"
+    },
+    "banner": {
+      "freeShipping": "Free Shipping on Orders Over $100",
+      "discount": "20% Off Your First Order",
+      "payLater": "Buy Now, Pay Later Available"
+    },
+    "placeOrder": {
+      "title": "Free Size Women Yoga Shorts Seamless Butt Lifting Tummy Control - Free Delivery",
+      "productImage": "Product Image",
+      "thumbnail": "Thumbnail",
+      "itemsSold": "Items Sold",
+      "orderNow": "Order Now",
+      "formDescription": "Kindly fill the form & we will deliver next day.",
+      "fullName": "Full Name*",
+      "fullNameRequired": "Please enter your full name",
+      "mobile": "Mobile*",
+      "mobileRequired": "Please enter your mobile number",
+      "invalidDubaiNumber": "Please enter a valid Dubai mobile number",
+      "quantity": "Quantity*",
+      "quantityRequired": "Please select a quantity",
+      "emirates": "Emirates*",
+      "emiratesRequired": "Please select an emirate",
+      "selectCity": "Select City*",
+      "deliveryAddress": "Delivery Address*",
+      "addressRequired": "Please enter your delivery address",
+      "addressPlaceholder": "Building No, Street name, Area",
+      "submitOrder": "SUBMIT ORDER",
+      "description": "Description",
+      "productDescription": "Free Size Women Yoga Shorts Seamless Butt Lifting Tummy Control. Made with high-quality stretchy fabric for ultimate comfort. Butt lifting design enhances body shape, while tummy control provides extra support. Perfect for yoga, workouts, and everyday wear.",
+      "orderSuccess": "Order placed successfully!",
+      "mainImage": "Main Image"
+    },
+    "orderConfirmation": {
+      "title": "Order Confirmed!",
+      "message": "Your order has been confirmed and will be shipped in the next two working days!",
+      "orderDetails": "Order Details",
+      "orderDate": "Order Date",
+      "orderNo": "Order No",
+      "payment": "Payment",
+      "cashOnDelivery": "Cash on Delivery",
+      "shippingAddress": "Shipping Address",
+      "productName": "Free Size Women Yoga Shorts Seamless Butt Lifting Tummy Control",
+      "quantity": "Quantity",
+      "subtotal": "Subtotal",
+      "shippingFee": "Shipping Fee",
+      "free": "Free",
+      "grandTotal": "Grand Total",
+      "viewMoreOffers": "View More Offers",
+      "thankYou": "Thanks for shopping with us!",
+      "fullName": "Full Name",
+      "mobileNumber": "Mobile Number"
+    },
+    "carousel": {
+      "previousSlide": "Previous slide",
+      "nextSlide": "Next slide",
+      "goToSlide": "Go to slide {number}",
+      "autoPlay": "Auto play",
+      "pauseAutoPlay": "Pause auto play"
+    },
+    "userOrders": {
+      "title": "My Orders",
+      "noOrders": "You have no orders yet.",
+      "orderNumber": "Order #{{number}}",
+      "orderDate": "Order Date: {{date}}",
+      "totalAmount": "Total Amount: {{amount}} PKR",
+      "status": "Status: {{status}}",
+      "items": "Order Items:",
+      "quantity": "Quantity: {{quantity}}",
+      "price": "Price: {{price}} PKR"
+    },
+    "errors": {
+      "fetchOrders": "Error fetching orders. Please try again later."
+    },
+    "aboutUs": {
+      "title": "About Us",
+      "ourStory": "Our Story",
+      "storyContent": "Founded as a visionary e-commerce venture, our company has rapidly evolved into a premier destination for discerning customers seeking high-quality beauty products and cutting-edge home appliances. Our journey of growth is underpinned by an unwavering commitment to excellence and customer satisfaction.",
+      "ourMission": "Our Mission",
+      "missionContent": "We aim to provide high-quality beauty and home products to our customers, focusing on customer satisfaction and innovation.",
+      "ourProducts": "Our Products",
+      "skinCare": "Skin Care",
+      "hairCare": "Hair Care",
+      "beautyProducts": "Beauty Products",
+      "homeAppliances": "Home Appliances",
+      "ourCommitment": "Our Commitment",
+      "commitmentContent": "We are committed to providing the best shopping experience for our customers, ensuring quality and excellent service."
+    },
+    "unclaimableProducts": {
+      "title": "Unclaimable Products",
+      "whatAreThey": "What are Unclaimable Products?",
+      "explanation": "Unclaimable products are items that cannot be returned or exchanged due to health and safety reasons or personal use.",
+      "examples": "Examples of Unclaimable Products",
+      "personalizedItems": "Personalized items",
+      "intimateProducts": "Intimate products",
+      "openedBeautyProducts": "Opened beauty products",
+      "usedAppliances": "Used home appliances",
+      "ourPolicy": "Our Policy",
+      "policyContent": "To ensure the safety and hygiene of all our customers, we do not accept returns or exchanges for unclaimable products.",
+      "customerSupport": "Customer Support",
+      "supportContent": "If you have any questions about unclaimable products, please contact our customer support team."
+    },
+    "whyUs": {
+      "title": "Why Us?",
+      "qualityProducts": "Quality Products",
+      "qualityContent": "We source only the best products for our customers, ensuring quality and performance.",
+      "fastDelivery": "Fast Delivery",
+      "deliveryContent": "We ensure quick and reliable delivery for all your orders.",
+      "securePayments": "Secure Payments",
+      "paymentsContent": "Your transactions are always safe with us, using the latest security technologies.",
+      "customerSatisfaction": "Customer Satisfaction",
+      "satisfactionContent": "We prioritize our customers' happiness and strive to provide an exceptional shopping experience.",
+      "ourPromise": "Our Promise to You",
+      "promiseContent": "At our company, we promise to provide an exceptional shopping experience with high-quality products and excellent customer service."
+    }
+  }
