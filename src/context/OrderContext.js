@@ -6,96 +6,96 @@ const OrderContext = createContext();
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000/api/v1';
 
-const fallbackOrders = {
-  pending: [
-    {
-      _id: 1,
-      customer_details: {
-        email: "john@example.com",
-        first_name: "John",
-        last_name: "Doe",
-        phone: "+971501234567",
-        address: "Downtown Dubai",
-        apartment: "123",
-        city: "Dubai",
-        postal_code: "12345",
-        delivery_city: "Dubai"
-      },
-      order_items: [
-        {
-          product_id: "P101",
-          quantity: 2,
-          size: "L",
-          price: 199.99
-        }
-      ],
-      order_notes: "Please deliver in the evening",
-      subtotal: 399.98,
-      payment_method: "COD",
-      status: "pending",
-      created_at: "2024-03-15",
-      updated_at: "2024-03-15"
-    },
-    {
-      id: 2,
-      web_user_id: "1002",
-      full_name: "Jane Smith",
-      quantity: 1,
-      product_id: "P102",
-      created_at: "2024-03-16",
-      delivery_type_name: "Express Delivery",
-      mobilenumber: "+971502345678",
-      selected_emirates: "Abu Dhabi",
-      delivery_address: "Corniche Road",
-      selected_attributes: "Size: M, Color: Red"
-    }
-  ],
-  confirmed: [
-    {
-      id: 3,
-      web_user_id: "1003",
-      full_name: "Mike Johnson",
-      quantity: 3,
-      product_id: "P103",
-      created_at: "2024-03-14",
-      delivery_type_name: "Next Day Delivery",
-      mobilenumber: "+971503456789",
-      selected_emirates: "Sharjah",
-      delivery_address: "Al Majaz",
-      selected_attributes: "Size: XL, Color: Black"
-    }
-  ],
-  delivered: [
-    {
-      id: 4,
-      web_user_id: "1004",
-      full_name: "Sarah Wilson",
-      quantity: 1,
-      product_id: "P104",
-      created_at: "2024-03-13",
-      delivery_type_name: "Standard Delivery",
-      mobilenumber: "+971504567890",
-      selected_emirates: "Dubai",
-      delivery_address: "Dubai Marina",
-      selected_attributes: "Size: S, Color: White"
-    }
-  ],
-  cancelled: [
-    {
-      id: 5,
-      web_user_id: "1005",
-      full_name: "Alex Brown",
-      quantity: 2,
-      product_id: "P105",
-      created_at: "2024-03-12",
-      delivery_type_name: "Express Delivery",
-      mobilenumber: "+971505678901",
-      selected_emirates: "Ajman",
-      delivery_address: "Al Jurf",
-      selected_attributes: "Size: M, Color: Green"
-    }
-  ]
-};
+// const fallbackOrders = {
+//   pending: [
+//     {
+//       _id: 1,
+//       customer_details: {
+//         email: "john@example.com",
+//         first_name: "John",
+//         last_name: "Doe",
+//         phone: "+971501234567",
+//         address: "Downtown Dubai",
+//         apartment: "123",
+//         city: "Dubai",
+//         postal_code: "12345",
+//         delivery_city: "Dubai"
+//       },
+//       order_items: [
+//         {
+//           product_id: "P101",
+//           quantity: 2,
+//           size: "L",
+//           price: 199.99
+//         }
+//       ],
+//       order_notes: "Please deliver in the evening",
+//       subtotal: 399.98,
+//       payment_method: "COD",
+//       status: "pending",
+//       created_at: "2024-03-15",
+//       updated_at: "2024-03-15"
+//     },
+//     {
+//       id: 2,
+//       web_user_id: "1002",
+//       full_name: "Jane Smith",
+//       quantity: 1,
+//       product_id: "P102",
+//       created_at: "2024-03-16",
+//       delivery_type_name: "Express Delivery",
+//       mobilenumber: "+971502345678",
+//       selected_emirates: "Abu Dhabi",
+//       delivery_address: "Corniche Road",
+//       selected_attributes: "Size: M, Color: Red"
+//     }
+//   ],
+//   confirmed: [
+//     {
+//       id: 3,
+//       web_user_id: "1003",
+//       full_name: "Mike Johnson",
+//       quantity: 3,
+//       product_id: "P103",
+//       created_at: "2024-03-14",
+//       delivery_type_name: "Next Day Delivery",
+//       mobilenumber: "+971503456789",
+//       selected_emirates: "Sharjah",
+//       delivery_address: "Al Majaz",
+//       selected_attributes: "Size: XL, Color: Black"
+//     }
+//   ],
+//   delivered: [
+//     {
+//       id: 4,
+//       web_user_id: "1004",
+//       full_name: "Sarah Wilson",
+//       quantity: 1,
+//       product_id: "P104",
+//       created_at: "2024-03-13",
+//       delivery_type_name: "Standard Delivery",
+//       mobilenumber: "+971504567890",
+//       selected_emirates: "Dubai",
+//       delivery_address: "Dubai Marina",
+//       selected_attributes: "Size: S, Color: White"
+//     }
+//   ],
+//   cancelled: [
+//     {
+//       id: 5,
+//       web_user_id: "1005",
+//       full_name: "Alex Brown",
+//       quantity: 2,
+//       product_id: "P105",
+//       created_at: "2024-03-12",
+//       delivery_type_name: "Express Delivery",
+//       mobilenumber: "+971505678901",
+//       selected_emirates: "Ajman",
+//       delivery_address: "Al Jurf",
+//       selected_attributes: "Size: M, Color: Green"
+//     }
+//   ]
+// };
 
 export const OrderProvider = ({ children }) => {
   const [pendingOrders, setPendingOrders] = useState([]);
