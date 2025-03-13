@@ -211,6 +211,33 @@ export const ProductProvider = ({ children }) => {
     }
   };
 
+  const uploadVideo = async (file) => {
+    try {
+      const token = Cookies.get('token');
+      console.log('Uploading video, token:', token);
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
+      };
+
+      const formData = new FormData();
+      formData.append('video', file);
+
+      const response = await axios.post(
+        `${API_URL}/products/upload-video`, 
+        formData,
+        { 
+          headers: headers
+        }
+      );
+      
+      return response.data.videoUrl;
+    } catch (error) {
+      console.error('Error uploading video:', error);
+      throw error;
+    }
+  };
+
   const deleteImage = async (key) => {
     try {
       const headers = getAuthHeaders();
@@ -238,6 +265,7 @@ export const ProductProvider = ({ children }) => {
     selectedProduct,
     setSelectedProduct,
     uploadImage,
+    uploadVideo,
     deleteImage
   };
 

@@ -8,6 +8,7 @@ export const useLandingImages = () => useContext(LandingImagesContext);
 
 export const LandingImagesProvider = ({ children }) => {
   const [landingImages, setLandingImages] = useState([]);
+  const [landingMedia, setLandingMedia] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,7 +27,10 @@ export const LandingImagesProvider = ({ children }) => {
         `${process.env.REACT_APP_BACKEND_URL}/landing-images`,
         { headers }
       );
+      
+      // Set both arrays for backward compatibility and new feature support
       setLandingImages(response.data.images || []);
+      setLandingMedia(response.data.media || response.data.images?.map(url => ({ url, type: 'image' })) || []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -35,16 +39,25 @@ export const LandingImagesProvider = ({ children }) => {
     }
   };
 
-  const saveLandingImages = async (images) => {
+  const saveLandingImages = async (media) => {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
+      
+      // Support for both new media format and legacy images format
+      const dataToSend = Array.isArray(media) && media.length > 0 && typeof media[0] === 'object' 
+        ? { media } 
+        : { images: media };
+      
       const response = await axios.post(
         `${process.env.REACT_APP_BACKEND_URL}/landing-images/add`,
-        { images },
+        dataToSend,
         { headers }
       );
-      setLandingImages(response.data.images);
+      
+      // Update state with response data
+      setLandingImages(response.data.images || []);
+      setLandingMedia(response.data.media || []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -56,6 +69,7 @@ export const LandingImagesProvider = ({ children }) => {
 
   const value = {
     landingImages,
+    landingMedia,
     loading,
     error,
     fetchLandingImages,
