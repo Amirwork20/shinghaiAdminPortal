@@ -8,29 +8,32 @@ import { useProduct } from '../../context/ProductContext';
 const { Option } = Select;
 
 const CategoryList = () => {
-  const { categories, addCategory, updateCategory, deleteCategory, fetchCategories } = useCategory();
+  const { categories, addCategory, updateCategory, deleteCategory, fetchCategories, isLoading, error } = useCategory();
   const { subCategories, fetchSubCategories } = useSubCategory();
   const { uploadImage } = useProduct();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [imageUrl, setImageUrl] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true);
       await Promise.all([
         fetchCategories(),
         fetchSubCategories()
       ]);
-      setLoading(false);
     };
 
     loadData();
   }, [fetchCategories, fetchSubCategories]);
+
+  useEffect(() => {
+    if (error) {
+      message.error(error);
+    }
+  }, [error]);
 
   const showModal = (category = null) => {
     setEditingCategory(category);
@@ -94,7 +97,7 @@ const CategoryList = () => {
       }
       handleCancel();
     } catch (error) {
-      message.error('An error occurred. Please try again.');
+      // Error is already handled in the context
     }
   };
 
@@ -107,7 +110,7 @@ const CategoryList = () => {
           await deleteCategory(id);
           message.success('Category deleted successfully');
         } catch (error) {
-          message.error('An error occurred. Please try again.');
+          // Error message will be shown from the context via useEffect
         }
       },
     });
@@ -197,13 +200,14 @@ const CategoryList = () => {
         columns={columns} 
         dataSource={filteredCategories} 
         rowKey="_id"
-        loading={loading}
+        loading={isLoading}
         scroll={{ x: 'max-content' }}
         pagination={{
           responsive: true,
           showSizeChanger: true,
           showQuickJumper: true,
         }}
+        locale={{ emptyText: 'No categories found' }}
       />
 
       <Modal
@@ -217,6 +221,7 @@ const CategoryList = () => {
           <Form.Item
             name="sub_category_id"
             label="Sub Category"
+            rules={[{ required: true, message: 'Please select a sub category!' }]}
           >
             <Select
               placeholder="Select sub category"

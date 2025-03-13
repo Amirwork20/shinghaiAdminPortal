@@ -1,21 +1,14 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
 const SubCategoryContext = createContext();
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000/api/v1';
 
-const fallbackSubCategories = [
-  {
-    id: 1,
-    category_name: "Smartphones",
-    main_category_id: 1
-  }
-];
-
 export const SubCategoryProvider = ({ children }) => {
   const [subCategories, setSubCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = Cookies.get('token');
@@ -23,7 +16,8 @@ export const SubCategoryProvider = ({ children }) => {
   }, []);
 
   const fetchSubCategories = useCallback(async () => {
-    if (!isLoading) return;
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await axios.get(`${API_URL}/sub-categories`, {
         headers: getAuthHeaders()
@@ -31,13 +25,15 @@ export const SubCategoryProvider = ({ children }) => {
       setSubCategories(response.data);
     } catch (error) {
       console.error('Error fetching sub categories:', error);
-      setSubCategories(fallbackSubCategories);
+      setError(error.response?.data?.error || error.response?.data?.message || 'Error fetching sub categories');
+      setSubCategories([]);
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeaders, isLoading]);
+  }, [getAuthHeaders]);
 
   const addSubCategory = async (categoryData) => {
+    setError(null);
     try {
       const response = await axios.post(`${API_URL}/sub-categories`, categoryData, {
         headers: getAuthHeaders()
@@ -45,17 +41,14 @@ export const SubCategoryProvider = ({ children }) => {
       setSubCategories(prev => [...prev, response.data]);
       return response.data;
     } catch (error) {
-      console.error('Error adding sub category:', error);
-      const fakeCategory = {
-        ...categoryData,
-        id: Math.floor(Math.random() * 10000)
-      };
-      setSubCategories(prev => [...prev, fakeCategory]);
-      return fakeCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error adding sub category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const updateSubCategory = async (id, categoryData) => {
+    setError(null);
     try {
       const response = await axios.put(`${API_URL}/sub-categories/${id}`, categoryData, {
         headers: getAuthHeaders()
@@ -63,22 +56,24 @@ export const SubCategoryProvider = ({ children }) => {
       setSubCategories(prev => prev.map(cat => cat._id === id ? response.data : cat));
       return response.data;
     } catch (error) {
-      console.error('Error updating sub category:', error);
-      const updatedCategory = { ...categoryData, id };
-      setSubCategories(prev => prev.map(cat => cat._id === id ? updatedCategory : cat));
-      return updatedCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error updating sub category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const deleteSubCategory = async (id) => {
+    setError(null);
     try {
-      await axios.delete(`${API_URL}/sub-categories/${id}`, {
+      const response = await axios.delete(`${API_URL}/sub-categories/${id}`, {
         headers: getAuthHeaders()
       });
       setSubCategories(prev => prev.filter(cat => cat._id !== id));
+      return response.data;
     } catch (error) {
-      console.error('Error deleting sub category:', error);
-      setSubCategories(prev => prev.filter(cat => cat._id !== id));
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error deleting sub category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -88,7 +83,8 @@ export const SubCategoryProvider = ({ children }) => {
     updateSubCategory,
     deleteSubCategory,
     fetchSubCategories,
-    isLoading
+    isLoading,
+    error
   };
 
   return (

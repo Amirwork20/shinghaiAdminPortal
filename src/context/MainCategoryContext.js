@@ -1,24 +1,14 @@
-import React, { createContext, useState, useContext,  useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
 const MainCategoryContext = createContext();
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000/api/v1';
 
-const fallbackMainCategories = [
-  {
-    id: 1,
-    category_name: "Electronics"
-  },
-  {
-    id: 2,
-    category_name: "Fashion"
-  }
-];
-
 export const MainCategoryProvider = ({ children }) => {
   const [mainCategories, setMainCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = Cookies.get('token');
@@ -27,6 +17,7 @@ export const MainCategoryProvider = ({ children }) => {
 
   const fetchMainCategories = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const response = await axios.get(`${API_URL}/main-categories`, {
         headers: getAuthHeaders()
@@ -34,13 +25,15 @@ export const MainCategoryProvider = ({ children }) => {
       setMainCategories(response.data);
     } catch (error) {
       console.error('Error fetching main categories:', error);
-      setMainCategories(fallbackMainCategories);
+      setError(error.response?.data?.error || error.response?.data?.message || 'Error fetching main categories');
+      setMainCategories([]);
     } finally {
       setIsLoading(false);
     }
   }, [getAuthHeaders]);
 
   const addMainCategory = async (categoryData) => {
+    setError(null);
     try {
       const response = await axios.post(`${API_URL}/main-categories`, categoryData, {
         headers: getAuthHeaders()
@@ -48,17 +41,14 @@ export const MainCategoryProvider = ({ children }) => {
       setMainCategories(prev => [...prev, response.data]);
       return response.data;
     } catch (error) {
-      console.error('Error adding main category:', error);
-      const fakeCategory = {
-        ...categoryData,
-        id: Math.floor(Math.random() * 10000)
-      };
-      setMainCategories(prev => [...prev, fakeCategory]);
-      return fakeCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error adding main category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const updateMainCategory = async (id, categoryData) => {
+    setError(null);
     try {
       const response = await axios.put(`${API_URL}/main-categories/${id}`, categoryData, {
         headers: getAuthHeaders()
@@ -66,22 +56,24 @@ export const MainCategoryProvider = ({ children }) => {
       setMainCategories(prev => prev.map(cat => cat._id === id ? response.data : cat));
       return response.data;
     } catch (error) {
-      console.error('Error updating main category:', error);
-      const updatedCategory = { ...categoryData, id };
-      setMainCategories(prev => prev.map(cat => cat._id === id ? updatedCategory : cat));
-      return updatedCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error updating main category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const deleteMainCategory = async (id) => {
+    setError(null);
     try {
-      await axios.delete(`${API_URL}/main-categories/${id}`, {
+      const response = await axios.delete(`${API_URL}/main-categories/${id}`, {
         headers: getAuthHeaders()
       });
       setMainCategories(prev => prev.filter(cat => cat._id !== id));
+      return response.data;
     } catch (error) {
-      console.error('Error deleting main category:', error);
-      setMainCategories(prev => prev.filter(cat => cat._id !== id));
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error deleting main category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -91,7 +83,8 @@ export const MainCategoryProvider = ({ children }) => {
     updateMainCategory,
     deleteMainCategory,
     fetchMainCategories,
-    isLoading
+    isLoading,
+    error
   };
 
   return (

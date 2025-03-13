@@ -11,11 +11,12 @@ const { Option } = Select;
 const SubCategoryList = () => {
   const { 
     subCategories, 
-    addSubCategory, 
+    addSubCategory,
     updateSubCategory, 
     deleteSubCategory, 
     fetchSubCategories,
-    isLoading 
+    isLoading,
+    error 
   } = useSubCategory();
 
   const { mainCategories, fetchMainCategories } = useMainCategory();
@@ -39,6 +40,12 @@ const SubCategoryList = () => {
     };
     loadData();
   }, [fetchSubCategories, fetchMainCategories, fetchCategories]);
+
+  useEffect(() => {
+    if (error) {
+      message.error(error);
+    }
+  }, [error]);
 
   const showModal = (category = null) => {
     setEditingCategory(category);
@@ -101,7 +108,7 @@ const SubCategoryList = () => {
       }
       handleCancel();
     } catch (error) {
-      message.error('An error occurred. Please try again.');
+      // Error is already handled in the context
     }
   };
 
@@ -114,7 +121,7 @@ const SubCategoryList = () => {
           await deleteSubCategory(id);
           message.success('Sub-category deleted successfully');
         } catch (error) {
-          message.error('An error occurred. Please try again.');
+          // Error message will be shown from the context via useEffect
         }
       },
     });
@@ -200,9 +207,10 @@ const SubCategoryList = () => {
       <Table
         columns={columns}
         dataSource={filteredSubCategories}
-        rowKey="id"
+        rowKey="_id"
         loading={isLoading}
         scroll={{ x: 'max-content' }}
+        locale={{ emptyText: 'No sub-categories found' }}
       />
 
       <Modal

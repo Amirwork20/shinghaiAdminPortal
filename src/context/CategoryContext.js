@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext,  useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
@@ -12,17 +12,10 @@ const CategoryContext = createContext({
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000/api/v1';
 
-const fallbackCategories = [
-  {
-    id: 1,
-    category_name: "Clothing",
-    sub_category_id: 1
-  }
-];
-
 export const CategoryProvider = ({ children }) => {
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = Cookies.get('token');
@@ -30,7 +23,8 @@ export const CategoryProvider = ({ children }) => {
   }, []);
 
   const fetchCategories = useCallback(async () => {
-    if (!isLoading) return;
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await axios.get(`${API_URL}/categories`, {
         headers: getAuthHeaders()
@@ -38,14 +32,15 @@ export const CategoryProvider = ({ children }) => {
       setCategories(response.data);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      // Use fallback data if API fails
-      setCategories(fallbackCategories);
+      setError(error.response?.data?.error || error.response?.data?.message || 'Error fetching categories');
+      setCategories([]);
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeaders, isLoading]);
+  }, [getAuthHeaders]);
 
   const addCategory = async (categoryData) => {
+    setError(null);
     try {
       const response = await axios.post(`${API_URL}/categories`, categoryData, {
         headers: getAuthHeaders()
@@ -53,18 +48,14 @@ export const CategoryProvider = ({ children }) => {
       setCategories(prevCategories => [...prevCategories, response.data]);
       return response.data;
     } catch (error) {
-      console.error('Error adding category:', error);
-      // Create fake response with generated ID
-      const fakeCategory = {
-        ...categoryData,
-        id: Math.floor(Math.random() * 10000)
-      };
-      setCategories(prevCategories => [...prevCategories, fakeCategory]);
-      return fakeCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error adding category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const updateCategory = async (id, categoryData) => {
+    setError(null);
     try {
       const response = await axios.put(`${API_URL}/categories/${id}`, categoryData, {
         headers: getAuthHeaders()
@@ -72,24 +63,24 @@ export const CategoryProvider = ({ children }) => {
       setCategories(prevCategories => prevCategories.map(cat => cat._id === id ? response.data : cat));
       return response.data;
     } catch (error) {
-      console.error('Error updating category:', error);
-      // Update locally if API fails
-      const updatedCategory = { ...categoryData, id };
-      setCategories(prevCategories => prevCategories.map(cat => cat._id === id ? updatedCategory : cat));
-      return updatedCategory;
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error updating category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const deleteCategory = async (id) => {
+    setError(null);
     try {
-      await axios.delete(`${API_URL}/categories/${id}`, {
+      const response = await axios.delete(`${API_URL}/categories/${id}`, {
         headers: getAuthHeaders()
       });
       setCategories(prevCategories => prevCategories.filter(cat => cat._id !== id));
+      return response.data;
     } catch (error) {
-      console.error('Error deleting category:', error);
-      // Delete locally if API fails
-      setCategories(prevCategories => prevCategories.filter(cat => cat._id !== id));
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error deleting category';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -99,7 +90,8 @@ export const CategoryProvider = ({ children }) => {
     updateCategory,
     deleteCategory,
     fetchCategories,
-    isLoading
+    isLoading,
+    error
   };
 
   return (

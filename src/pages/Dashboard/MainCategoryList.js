@@ -12,7 +12,7 @@ const MainCategoryList = () => {
     deleteMainCategory, 
     fetchMainCategories,
     isLoading,
-   
+    error
   } = useMainCategory();
   const { uploadImage } = useProduct();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -25,6 +25,12 @@ const MainCategoryList = () => {
   useEffect(() => {
     fetchMainCategories();
   }, [fetchMainCategories]);
+
+  useEffect(() => {
+    if (error) {
+      message.error(error);
+    }
+  }, [error]);
 
   const showModal = (category = null) => {
     setEditingCategory(category);
@@ -79,7 +85,7 @@ const MainCategoryList = () => {
       }
       handleCancel();
     } catch (error) {
-      message.error('An error occurred. Please try again.');
+      // Error is already handled in the context
     }
   };
 
@@ -92,7 +98,7 @@ const MainCategoryList = () => {
           await deleteMainCategory(id);
           message.success('Main category deleted successfully');
         } catch (error) {
-          message.error('An error occurred. Please try again.');
+          // Error message will be shown from the context via useEffect
         }
       },
     });
@@ -148,9 +154,10 @@ const MainCategoryList = () => {
         dataSource={mainCategories.filter(category =>
           category.category_name.toLowerCase().includes(searchQuery.toLowerCase())
         )}
-        rowKey="id"
+        rowKey="_id"
         loading={isLoading}
         scroll={{ x: 'max-content' }}
+        locale={{ emptyText: 'No categories found' }}
       />
 
       <Modal
