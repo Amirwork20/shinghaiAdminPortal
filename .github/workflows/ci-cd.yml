@@ -50,7 +50,7 @@ jobs:
             cd /var/www/osama.shinghai.com.pk || exit 1
 
             # root user
-            sudo su
+            #sudo su
             
             # Pull the latest code from the repository
             git pull origin main  # Change 'main' to your default branch if different
