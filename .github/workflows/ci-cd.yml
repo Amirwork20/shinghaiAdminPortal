@@ -68,7 +68,7 @@ jobs:
             rm -rf build
             
             # Rebuild this react application
-            env NODE_OPTIONS="--max_old_space_size=2048" npm run build || exit 1 
+            env NODE_OPTIONS="--max_old_space_size=4096" npm run build || exit 1 
 
             #exit root user
             echo exitRootUser
