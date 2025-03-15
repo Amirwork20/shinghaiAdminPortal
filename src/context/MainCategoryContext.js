@@ -35,7 +35,15 @@ export const MainCategoryProvider = ({ children }) => {
   const addMainCategory = async (categoryData) => {
     setError(null);
     try {
-      const response = await axios.post(`${API_URL}/main-categories`, categoryData, {
+      // Extract imageUrl from the image object if it's not a string
+      const formattedData = {
+        ...categoryData,
+        image_url: typeof categoryData.image_url === 'object' 
+          ? categoryData.image_url.imageUrl || categoryData.image_url.toString() 
+          : categoryData.image_url
+      };
+      
+      const response = await axios.post(`${API_URL}/main-categories`, formattedData, {
         headers: getAuthHeaders()
       });
       setMainCategories(prev => [...prev, response.data]);
@@ -50,7 +58,15 @@ export const MainCategoryProvider = ({ children }) => {
   const updateMainCategory = async (id, categoryData) => {
     setError(null);
     try {
-      const response = await axios.put(`${API_URL}/main-categories/${id}`, categoryData, {
+      // Extract imageUrl from the image object if it's not a string
+      const formattedData = {
+        ...categoryData,
+        image_url: typeof categoryData.image_url === 'object' 
+          ? categoryData.image_url.imageUrl || categoryData.image_url.toString() 
+          : categoryData.image_url
+      };
+      
+      const response = await axios.put(`${API_URL}/main-categories/${id}`, formattedData, {
         headers: getAuthHeaders()
       });
       setMainCategories(prev => prev.map(cat => cat._id === id ? response.data : cat));

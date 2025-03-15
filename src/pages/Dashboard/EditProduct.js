@@ -137,6 +137,18 @@ const EditProduct = () => {
       ? values.attributes.filter(attr => attr && attr.attribute_id && attr.values && attr.values.length > 0)
       : [];
 
+    // Ensure all URLs are strings
+    const image_url = typeof mainImageUrl === 'string' ? mainImageUrl : null;
+    const tabs_image_url = tabImageUrls.map(url => {
+      if (typeof url === 'string') return url;
+      if (url && url.imageUrl) return url.imageUrl;
+      if (url && typeof url.toString === 'function') {
+        const str = url.toString();
+        if (str !== '[object Object]') return str;
+      }
+      return null;
+    }).filter(url => url !== null);
+
     return {
       ...values,
       actual_price: parseFloat(values.actual_price),
@@ -147,8 +159,8 @@ const EditProduct = () => {
       max_quantity_per_user: parseInt(values.max_quantity_per_user),
       sold: parseInt(values.sold),
       attributes: formattedAttributes,
-      image_url: mainImageUrl,
-      tabs_image_url: tabImageUrls.flat(), // Ensure this is a flat array
+      image_url: image_url,
+      tabs_image_url: tabs_image_url, // Use filtered array of string URLs
       is_deal: values.is_deal || false,
       is_hot_deal: values.is_hot_deal || false,
       vat_included: values.vat_included === undefined ? true : values.vat_included
@@ -163,8 +175,21 @@ const EditProduct = () => {
     }
     if (status === 'done') {
       try {
-        const url = await uploadImage(originFileObj);
-        setMainImageUrl(url);
+        const response = await uploadImage(originFileObj);
+        
+        // Extract the string URL from the response object
+        let imageUrl;
+        if (typeof response === 'string') {
+          imageUrl = response;
+        } else if (response && response.imageUrl) {
+          imageUrl = response.imageUrl;
+        } else if (response && typeof response.toString === 'function') {
+          imageUrl = response.toString();
+        } else {
+          throw new Error('Could not extract URL from upload response');
+        }
+        
+        setMainImageUrl(imageUrl);
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
         message.error(`${info.file.name} file upload failed.`);
@@ -182,8 +207,21 @@ const EditProduct = () => {
     }
     if (status === 'done') {
       try {
-        const url = await uploadImage(originFileObj);
-        setTabImageUrls(prev => [...prev, url]); // Append to flat array
+        const response = await uploadImage(originFileObj);
+        
+        // Extract the string URL from the response object
+        let imageUrl;
+        if (typeof response === 'string') {
+          imageUrl = response;
+        } else if (response && response.imageUrl) {
+          imageUrl = response.imageUrl;
+        } else if (response && typeof response.toString === 'function') {
+          imageUrl = response.toString();
+        } else {
+          throw new Error('Could not extract URL from upload response');
+        }
+        
+        setTabImageUrls(prev => [...prev, imageUrl]); // Add string URL to array
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
         message.error(`${info.file.name} file upload failed.`);

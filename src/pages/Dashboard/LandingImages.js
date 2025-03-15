@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useLandingImages } from '../../context/LandingImagesContext';
 import { useProduct } from '../../context/ProductContext';
-import { message, Button, Upload, Spin, Layout, Modal, Tabs, Select, Card } from 'antd';
-import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined } from '@ant-design/icons';
+import { message, Button, Upload, Spin, Layout, Modal, Tabs, Select, Card, Badge, Tooltip, Progress } from 'antd';
+import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined, InfoCircleOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 const { Option } = Select;
@@ -14,6 +14,7 @@ const LandingImages = () => {
   const [previewMedia, setPreviewMedia] = useState(null);
   const [previewType, setPreviewType] = useState('image');
   const [mediaItems, setMediaItems] = useState([]);
+  const [optimizationStats, setOptimizationStats] = useState(null);
   const { uploadImage, uploadVideo } = useProduct();
   const { 
     landingImages = [], 
@@ -32,12 +33,38 @@ const LandingImages = () => {
     // Use landingMedia if available, otherwise convert landingImages to media format
     if (landingMedia && landingMedia.length > 0) {
       setMediaItems(landingMedia);
+      
+      // Calculate optimization stats if available
+      const totalOriginalSize = landingMedia.reduce((sum, item) => {
+        return sum + (item.optimizationMeta?.originalSize || 0);
+      }, 0);
+      
+      const totalOptimizedSize = landingMedia.reduce((sum, item) => {
+        return sum + (item.optimizationMeta?.optimizedSize || 0);
+      }, 0);
+      
+      if (totalOriginalSize > 0 && totalOptimizedSize > 0) {
+        setOptimizationStats({
+          originalSize: formatFileSize(totalOriginalSize),
+          optimizedSize: formatFileSize(totalOptimizedSize),
+          savedPercentage: Math.round((1 - (totalOptimizedSize / totalOriginalSize)) * 100)
+        });
+      }
     } else if (landingImages && landingImages.length > 0) {
       setMediaItems(landingImages.map(url => ({ url, type: 'image' })));
     } else {
       setMediaItems([]);
     }
   }, [landingMedia, landingImages]);
+
+  // Format file size in KB, MB, etc.
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   if (!fetchLandingImages) {
     return <div>Error: LandingImages context not found</div>;
@@ -54,18 +81,63 @@ const LandingImages = () => {
         console.log(`Uploading ${mediaType}:`, originFileObj);
         
         // Use the appropriate upload function based on media type
-        const url = mediaType === 'video' 
-          ? await uploadVideo(originFileObj)
-          : await uploadImage(originFileObj);
-          
-        console.log(`${mediaType} uploaded successfully:`, url);
+        let response;
+        if (mediaType === 'video') {
+          response = await uploadVideo(originFileObj);
+          console.log('Video upload response:', response);
+        } else {
+          response = await uploadImage(originFileObj);
+          console.log('Image upload response:', response);
+        }
         
-        // Add the new media with its type
-        setMediaItems(prev => [...prev, { url, type: mediaType }]);
-        message.success(`${info.file.name} file uploaded successfully`);
+        // Extract URL and additional metadata
+        let url, placeholderUrl, posterUrl, optimizationMeta;
+        let optimizationWarning = null;
+        
+        if (typeof response === 'string') {
+          // Old format - just URL
+          url = response;
+        } else {
+          // New format with optimization data
+          url = mediaType === 'video' ? response.videoUrl : response.imageUrl;
+          placeholderUrl = response.placeholderUrl;
+          posterUrl = response.posterUrl;
+          
+          // Check if there was an optimization warning
+          if (response.optimizationError) {
+            optimizationWarning = response.optimizationError;
+            message.warning(`Media uploaded but optimization failed: ${response.optimizationError}`);
+          }
+          
+          // Create optimization metadata
+          optimizationMeta = {
+            originalSize: response.originalSize,
+            optimizedSize: response.optimizedSize || response.originalSize, // Use original if optimized not available
+            contentType: mediaType === 'video' ? 'video/mp4' : `image/${response.format || 'jpeg'}`,
+            hasProgressiveLoading: !!placeholderUrl,
+            optimizationWarning: optimizationWarning
+          };
+        }
+        
+        // Add the new media with all available metadata
+        const newMediaItem = { 
+          url, 
+          type: mediaType,
+          ...(placeholderUrl && { placeholderUrl }),
+          ...(posterUrl && { posterUrl }),
+          ...(optimizationMeta && { optimizationMeta })
+        };
+        
+        setMediaItems(prev => [...prev, newMediaItem]);
+        
+        if (optimizationWarning) {
+          message.success(`${info.file.name} uploaded successfully, but without optimization`);
+        } else {
+          message.success(`${info.file.name} file uploaded and optimized successfully`);
+        }
       } catch (error) {
         console.error(`Error uploading ${mediaType}:`, error);
-        message.error(`${info.file.name} file upload failed.`);
+        message.error(`${info.file.name} file upload failed: ${error.message || 'Unknown error'}`);
       } finally {
         setUploadingMedia(false);
       }
@@ -141,6 +213,39 @@ const LandingImages = () => {
             </Button>
           </div>
           
+          {/* Optimization Stats */}
+          {optimizationStats && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center mb-2">
+                <InfoCircleOutlined className="mr-2 text-blue-500" />
+                <span className="font-medium">Media Optimization Summary</span>
+              </div>
+              <div className="flex flex-wrap gap-6">
+                <div>
+                  <div className="text-sm text-gray-500">Original Size</div>
+                  <div className="font-medium">{optimizationStats.originalSize}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Optimized Size</div>
+                  <div className="font-medium">{optimizationStats.optimizedSize}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Space Saved</div>
+                  <div className="flex items-center">
+                    <span className="font-medium text-green-600">{optimizationStats.savedPercentage}%</span>
+                    <Progress 
+                      percent={optimizationStats.savedPercentage} 
+                      size="small" 
+                      className="ml-2 w-20"
+                      showInfo={false}
+                      strokeColor="#10B981"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <Tabs defaultActiveKey="all">
             <TabPane tab="All Media" key="all">
               <div className="mb-4">
@@ -178,14 +283,36 @@ const LandingImages = () => {
                       cover={
                         item.type === 'video' ? (
                           <div className="h-32 bg-gray-100 flex items-center justify-center">
-                            <VideoCameraOutlined style={{ fontSize: 32 }} />
+                            {item.posterUrl ? (
+                              <div className="relative w-full h-full">
+                                <img 
+                                  src={item.posterUrl} 
+                                  alt="Video poster" 
+                                  className="h-32 w-full object-cover"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                                  <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
+                                </div>
+                              </div>
+                            ) : (
+                              <VideoCameraOutlined style={{ fontSize: 32 }} />
+                            )}
                           </div>
                         ) : (
-                          <img 
-                            alt={`media-${index}`} 
-                            src={item.url} 
-                            className="h-32 w-full object-cover"
-                          />
+                          <div className="relative">
+                            <img 
+                              alt={`media-${index}`} 
+                              src={item.url} 
+                              className="h-32 w-full object-cover"
+                            />
+                            {item.placeholderUrl && (
+                              <Badge 
+                                count="Optimized" 
+                                style={{ backgroundColor: '#52c41a' }}
+                                className="absolute top-2 right-2"
+                              />
+                            )}
+                          </div>
                         )
                       }
                       actions={[
@@ -197,7 +324,23 @@ const LandingImages = () => {
                         </Button>
                       ]}
                     >
-                      <div className="text-xs truncate">{item.type}</div>
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs truncate">{item.type}</div>
+                        {item.optimizationMeta && (
+                          <Tooltip title={
+                            item.optimizationMeta.optimizationWarning 
+                              ? `Warning: ${item.optimizationMeta.optimizationWarning}` 
+                              : `Original: ${formatFileSize(item.optimizationMeta.originalSize)}, Optimized: ${formatFileSize(item.optimizationMeta.optimizedSize)}`
+                          }>
+                            <InfoCircleOutlined className={item.optimizationMeta.optimizationWarning ? "text-orange-500" : "text-blue-500"} />
+                          </Tooltip>
+                        )}
+                      </div>
+                      {item.optimizationMeta?.optimizationWarning && (
+                        <div className="text-xs text-orange-500 mt-1">
+                          Optimization skipped
+                        </div>
+                      )}
                     </Card>
                   ))}
                 </div>
@@ -213,11 +356,20 @@ const LandingImages = () => {
                       key={index}
                       hoverable
                       cover={
-                        <img 
-                          alt={`image-${index}`} 
-                          src={item.url} 
-                          className="h-32 w-full object-cover"
-                        />
+                        <div className="relative">
+                          <img 
+                            alt={`image-${index}`} 
+                            src={item.url} 
+                            className="h-32 w-full object-cover"
+                          />
+                          {item.placeholderUrl && (
+                            <Badge 
+                              count="Optimized" 
+                              style={{ backgroundColor: '#52c41a' }}
+                              className="absolute top-2 right-2"
+                            />
+                          )}
+                        </div>
                       }
                       actions={[
                         <Button type="link" onClick={() => handlePreview(item)}>
@@ -227,7 +379,13 @@ const LandingImages = () => {
                           Delete
                         </Button>
                       ]}
-                    />
+                    >
+                      {item.optimizationMeta && (
+                        <div className="text-xs text-gray-500">
+                          Saved: {Math.round((1 - (item.optimizationMeta.optimizedSize / item.optimizationMeta.originalSize)) * 100)}%
+                        </div>
+                      )}
+                    </Card>
                   ))}
               </div>
             </TabPane>
@@ -242,7 +400,20 @@ const LandingImages = () => {
                       hoverable
                       cover={
                         <div className="h-32 bg-gray-100 flex items-center justify-center">
-                          <VideoCameraOutlined style={{ fontSize: 32 }} />
+                          {item.posterUrl ? (
+                            <div className="relative w-full h-full">
+                              <img 
+                                src={item.posterUrl} 
+                                alt="Video poster" 
+                                className="h-32 w-full object-cover"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                                <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <VideoCameraOutlined style={{ fontSize: 32 }} />
+                          )}
                         </div>
                       }
                       actions={[
@@ -254,7 +425,23 @@ const LandingImages = () => {
                         </Button>
                       ]}
                     >
-                      <div className="text-xs truncate">{item.url.split('/').pop()}</div>
+                      <div className="text-xs truncate flex justify-between">
+                        <span>{item.url.split('/').pop()}</span>
+                        {item.optimizationMeta && (
+                          <Tooltip title={
+                            item.optimizationMeta.optimizationWarning 
+                              ? `Warning: ${item.optimizationMeta.optimizationWarning}` 
+                              : `Original: ${formatFileSize(item.optimizationMeta.originalSize)}, Optimized: ${formatFileSize(item.optimizationMeta.optimizedSize)}`
+                          }>
+                            <InfoCircleOutlined className={item.optimizationMeta.optimizationWarning ? "text-orange-500" : "text-blue-500"} />
+                          </Tooltip>
+                        )}
+                      </div>
+                      {item.optimizationMeta?.optimizationWarning && (
+                        <div className="text-xs text-orange-500 mt-1">
+                          Optimization skipped
+                        </div>
+                      )}
                     </Card>
                   ))}
               </div>

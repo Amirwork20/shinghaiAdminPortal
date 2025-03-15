@@ -99,6 +99,18 @@ const AddProduct = () => {
 
     const {tabImages, mainImage, ...restValues} = values;
 
+    // Ensure all URLs are strings
+    const image_url = typeof mainImageUrl === 'string' ? mainImageUrl : null;
+    const tabs_image_url = tabImageUrls.map(url => {
+      if (typeof url === 'string') return url;
+      if (url && url.imageUrl) return url.imageUrl;
+      if (url && typeof url.toString === 'function') {
+        const str = url.toString();
+        if (str !== '[object Object]') return str;
+      }
+      return null;
+    }).filter(url => url !== null);
+
     return {
       ...restValues,
       season: values.season || 'All Season',
@@ -111,8 +123,8 @@ const AddProduct = () => {
       max_quantity_per_user: parseInt(values.max_quantity_per_user),
       sold: parseInt(values.sold),
       attributes: formattedAttributes,
-      image_url: mainImageUrl,
-      tabs_image_url: tabImageUrls,
+      image_url: image_url,
+      tabs_image_url: tabs_image_url,
       is_deal: values.is_deal || false,
       is_hot_deal: values.is_hot_deal || false,
       vat_included: values.vat_included === undefined ? true : values.vat_included
@@ -127,8 +139,21 @@ const AddProduct = () => {
     }
     if (status === 'done') {
       try {
-        const url = await uploadImage(originFileObj);
-        setMainImageUrl(url);
+        const response = await uploadImage(originFileObj);
+        
+        // Extract the string URL from the response object
+        let imageUrl;
+        if (typeof response === 'string') {
+          imageUrl = response;
+        } else if (response && response.imageUrl) {
+          imageUrl = response.imageUrl;
+        } else if (response && typeof response.toString === 'function') {
+          imageUrl = response.toString();
+        } else {
+          throw new Error('Could not extract URL from upload response');
+        }
+        
+        setMainImageUrl(imageUrl);
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
         message.error(`${info.file.name} file upload failed.`);
@@ -147,9 +172,22 @@ const AddProduct = () => {
     if (status === 'done') {
       try {
         console.log('Uploading image:', originFileObj);
-        const url = await uploadImage(originFileObj);
-        console.log('Image uploaded successfully:', url);
-        setTabImageUrls(prev => [...prev, url]);
+        const response = await uploadImage(originFileObj);
+        console.log('Image uploaded successfully:', response);
+        
+        // Extract the string URL from the response object
+        let imageUrl;
+        if (typeof response === 'string') {
+          imageUrl = response;
+        } else if (response && response.imageUrl) {
+          imageUrl = response.imageUrl;
+        } else if (response && typeof response.toString === 'function') {
+          imageUrl = response.toString();
+        } else {
+          throw new Error('Could not extract URL from upload response');
+        }
+        
+        setTabImageUrls(prev => [...prev, imageUrl]);
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
         console.error('Error uploading image:', error);

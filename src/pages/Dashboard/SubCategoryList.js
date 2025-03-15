@@ -81,8 +81,19 @@ const SubCategoryList = () => {
     }
     if (status === 'done') {
       try {
-        const url = await uploadImage(originFileObj);
-        setImageUrl(url);
+        const response = await uploadImage(originFileObj);
+        
+        // Extract the image URL from the response
+        let imageUrl;
+        if (typeof response === 'string') {
+          imageUrl = response;
+        } else if (response && response.imageUrl) {
+          imageUrl = response.imageUrl;
+        } else if (response && typeof response.toString === 'function') {
+          imageUrl = response.toString();
+        }
+        
+        setImageUrl(imageUrl);
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
         message.error(`${info.file.name} file upload failed.`);

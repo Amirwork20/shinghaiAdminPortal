@@ -186,25 +186,36 @@ export const ProductProvider = ({ children }) => {
 
   const uploadImage = async (file) => {
     try {
-      const token = Cookies.get('token');
-      console.log(token,"token");
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
-      };
-
       const formData = new FormData();
       formData.append('image', file);
-
+      
+      const token = Cookies.get('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       const response = await axios.post(
-        `${API_URL}/products/upload-image`, 
+        `${process.env.REACT_APP_BACKEND_URL}/products/upload-image`,
         formData,
-        { 
-          headers: headers
-        }
+        { headers }
       );
       
-      return response.data.imageUrl;
+      console.log('Image upload response:', response.data);
+      
+      // Return the full response data with all metadata
+      if (response.data.imageUrl) {
+        // For compatibility with both new and old code using this function
+        const result = response.data;
+        // Add the URL directly on the result object for backward compatibility
+        Object.defineProperty(result, 'toString', {
+          value: function() { return this.imageUrl; },
+          writable: true,
+          configurable: true
+        });
+        return result;
+      }
+      
+      throw new Error('Image URL not found in response');
     } catch (error) {
       console.error('Error uploading image:', error);
       throw error;
@@ -213,25 +224,36 @@ export const ProductProvider = ({ children }) => {
 
   const uploadVideo = async (file) => {
     try {
-      const token = Cookies.get('token');
-      console.log('Uploading video, token:', token);
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
-      };
-
       const formData = new FormData();
       formData.append('video', file);
-
+      
+      const token = Cookies.get('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       const response = await axios.post(
-        `${API_URL}/products/upload-video`, 
+        `${process.env.REACT_APP_BACKEND_URL}/products/upload-video`,
         formData,
-        { 
-          headers: headers
-        }
+        { headers }
       );
       
-      return response.data.videoUrl;
+      console.log('Video upload response:', response.data);
+      
+      // Return the full response data with all metadata
+      if (response.data.videoUrl) {
+        // For compatibility with both new and old code using this function
+        const result = response.data;
+        // Add the URL directly on the result object for backward compatibility
+        Object.defineProperty(result, 'toString', {
+          value: function() { return this.videoUrl; },
+          writable: true,
+          configurable: true
+        });
+        return result;
+      }
+      
+      throw new Error('Video URL not found in response');
     } catch (error) {
       console.error('Error uploading video:', error);
       throw error;
