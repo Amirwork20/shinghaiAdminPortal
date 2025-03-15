@@ -9,7 +9,8 @@ const { Option } = Select;
 const { TabPane } = Tabs;
 
 const LandingImages = () => {
-  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewMedia, setPreviewMedia] = useState(null);
   const [previewType, setPreviewType] = useState('image');
@@ -70,28 +71,21 @@ const LandingImages = () => {
     return <div>Error: LandingImages context not found</div>;
   }
 
-  const handleMediaUpload = async (info, mediaType = 'image') => {
+  const handleImageUpload = async (info) => {
     const { status, originFileObj } = info.file;
     if (status === 'uploading') {
-      setUploadingMedia(true);
+      setUploadingImage(true);
       return;
     }
     if (status === 'done') {
       try {
-        console.log(`Uploading ${mediaType}:`, originFileObj);
+        console.log('Uploading image:', originFileObj);
         
-        // Use the appropriate upload function based on media type
-        let response;
-        if (mediaType === 'video') {
-          response = await uploadVideo(originFileObj);
-          console.log('Video upload response:', response);
-        } else {
-          response = await uploadImage(originFileObj);
-          console.log('Image upload response:', response);
-        }
+        const response = await uploadImage(originFileObj);
+        console.log('Image upload response:', response);
         
         // Extract URL and additional metadata
-        let url, placeholderUrl, posterUrl, optimizationMeta;
+        let url, placeholderUrl, optimizationMeta;
         let optimizationWarning = null;
         
         if (typeof response === 'string') {
@@ -99,21 +93,20 @@ const LandingImages = () => {
           url = response;
         } else {
           // New format with optimization data
-          url = mediaType === 'video' ? response.videoUrl : response.imageUrl;
+          url = response.imageUrl;
           placeholderUrl = response.placeholderUrl;
-          posterUrl = response.posterUrl;
           
           // Check if there was an optimization warning
           if (response.optimizationError) {
             optimizationWarning = response.optimizationError;
-            message.warning(`Media uploaded but optimization failed: ${response.optimizationError}`);
+            message.warning(`Image uploaded but optimization failed: ${response.optimizationError}`);
           }
           
           // Create optimization metadata
           optimizationMeta = {
             originalSize: response.originalSize,
             optimizedSize: response.optimizedSize || response.originalSize, // Use original if optimized not available
-            contentType: mediaType === 'video' ? 'video/mp4' : `image/${response.format || 'jpeg'}`,
+            contentType: `image/${response.format || 'jpeg'}`,
             hasProgressiveLoading: !!placeholderUrl,
             optimizationWarning: optimizationWarning
           };
@@ -122,9 +115,8 @@ const LandingImages = () => {
         // Add the new media with all available metadata
         const newMediaItem = { 
           url, 
-          type: mediaType,
+          type: 'image',
           ...(placeholderUrl && { placeholderUrl }),
-          ...(posterUrl && { posterUrl }),
           ...(optimizationMeta && { optimizationMeta })
         };
         
@@ -136,10 +128,86 @@ const LandingImages = () => {
           message.success(`${info.file.name} file uploaded and optimized successfully`);
         }
       } catch (error) {
-        console.error(`Error uploading ${mediaType}:`, error);
+        console.error(`Error uploading image:`, error);
         message.error(`${info.file.name} file upload failed: ${error.message || 'Unknown error'}`);
       } finally {
-        setUploadingMedia(false);
+        setUploadingImage(false);
+      }
+    }
+  };
+
+  const handleVideoUpload = async (info) => {
+    const { status, originFileObj } = info.file;
+    if (status === 'uploading') {
+      setUploadingVideo(true);
+      return;
+    }
+    if (status === 'done') {
+      try {
+        console.log('Uploading video:', originFileObj);
+        
+        message.loading({
+          content: 'Processing video. This may take a minute...',
+          key: 'videoUpload',
+          duration: 0
+        });
+        
+        const response = await uploadVideo(originFileObj);
+        console.log('Video upload response:', response);
+        
+        // Extract URL and additional metadata
+        let url, posterUrl, optimizationMeta;
+        let optimizationWarning = null;
+        
+        if (typeof response === 'string') {
+          // Old format - just URL
+          url = response;
+        } else {
+          // New format with optimization data
+          url = response.videoUrl;
+          posterUrl = response.posterUrl;
+          
+          // Check if there was an optimization warning
+          if (response.optimizationError) {
+            optimizationWarning = response.optimizationError;
+            message.warning({
+              content: `Video uploaded but optimization failed: ${response.optimizationError}`,
+              key: 'videoUpload'
+            });
+          } else {
+            message.success({
+              content: `${info.file.name} video processed and optimized successfully!`,
+              key: 'videoUpload'
+            });
+          }
+          
+          // Create optimization metadata
+          optimizationMeta = {
+            originalSize: response.originalSize,
+            optimizedSize: response.optimizedSize || response.originalSize, // Use original if optimized not available
+            contentType: 'video/mp4',
+            hasProgressiveLoading: false,
+            optimizationWarning: optimizationWarning
+          };
+        }
+        
+        // Add the new media with all available metadata
+        const newMediaItem = { 
+          url, 
+          type: 'video',
+          ...(posterUrl && { posterUrl }),
+          ...(optimizationMeta && { optimizationMeta })
+        };
+        
+        setMediaItems(prev => [...prev, newMediaItem]);
+      } catch (error) {
+        console.error(`Error uploading video:`, error);
+        message.error({
+          content: `${info.file.name} video upload failed: ${error.message || 'Unknown error'}`,
+          key: 'videoUpload'
+        });
+      } finally {
+        setUploadingVideo(false);
       }
     }
   };
@@ -253,27 +321,49 @@ const LandingImages = () => {
                   <Upload
                     accept="image/*"
                     customRequest={({ file, onSuccess, onError }) => {
-                      handleMediaUpload({ file: { ...file, status: 'done', originFileObj: file } }, 'image')
+                      handleImageUpload({ file: { ...file, status: 'done', originFileObj: file } })
                         .then(() => onSuccess('ok'))
                         .catch(error => onError(error));
                     }}
                     showUploadList={false}
+                    disabled={uploadingImage || uploadingVideo}
                   >
-                    <Button icon={<PictureOutlined />}>Upload Image</Button>
+                    <Button 
+                      icon={uploadingImage ? <LoadingOutlined /> : <PictureOutlined />}
+                      disabled={uploadingImage || uploadingVideo}
+                    >
+                      {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                    </Button>
                   </Upload>
                   
                   <Upload
                     accept="video/*"
                     customRequest={({ file, onSuccess, onError }) => {
-                      handleMediaUpload({ file: { ...file, status: 'done', originFileObj: file } }, 'video')
+                      handleVideoUpload({ file: { ...file, status: 'done', originFileObj: file } })
                         .then(() => onSuccess('ok'))
                         .catch(error => onError(error));
                     }}
                     showUploadList={false}
+                    disabled={uploadingImage || uploadingVideo}
                   >
-                    <Button icon={<VideoCameraOutlined />}>Upload Video</Button>
+                    <Button 
+                      icon={uploadingVideo ? <LoadingOutlined /> : <VideoCameraOutlined />}
+                      disabled={uploadingImage || uploadingVideo}
+                    >
+                      {uploadingVideo ? 'Processing Video...' : 'Upload Video'}
+                    </Button>
                   </Upload>
                 </div>
+                
+                {uploadingVideo && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center">
+                    <Spin className="mr-3" />
+                    <div>
+                      <p className="font-medium">Video processing in progress</p>
+                      <p className="text-sm text-gray-500">This may take a minute or two depending on the video size.</p>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {mediaItems.map((item, index) => (
@@ -348,6 +438,26 @@ const LandingImages = () => {
             </TabPane>
             
             <TabPane tab="Images" key="images">
+              <div className="flex mb-4">
+                <Upload
+                  accept="image/*"
+                  customRequest={({ file, onSuccess, onError }) => {
+                    handleImageUpload({ file: { ...file, status: 'done', originFileObj: file } })
+                      .then(() => onSuccess('ok'))
+                      .catch(error => onError(error));
+                  }}
+                  showUploadList={false}
+                  disabled={uploadingImage || uploadingVideo}
+                >
+                  <Button 
+                    icon={uploadingImage ? <LoadingOutlined /> : <PictureOutlined />}
+                    disabled={uploadingImage || uploadingVideo}
+                  >
+                    {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                  </Button>
+                </Upload>
+              </div>
+              
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {mediaItems
                   .filter(item => item.type === 'image')
@@ -391,6 +501,36 @@ const LandingImages = () => {
             </TabPane>
             
             <TabPane tab="Videos" key="videos">
+              <div className="flex mb-4">
+                <Upload
+                  accept="video/*"
+                  customRequest={({ file, onSuccess, onError }) => {
+                    handleVideoUpload({ file: { ...file, status: 'done', originFileObj: file } })
+                      .then(() => onSuccess('ok'))
+                      .catch(error => onError(error));
+                  }}
+                  showUploadList={false}
+                  disabled={uploadingImage || uploadingVideo}
+                >
+                  <Button 
+                    icon={uploadingVideo ? <LoadingOutlined /> : <VideoCameraOutlined />}
+                    disabled={uploadingImage || uploadingVideo}
+                  >
+                    {uploadingVideo ? 'Processing Video...' : 'Upload Video'}
+                  </Button>
+                </Upload>
+              </div>
+              
+              {uploadingVideo && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center">
+                  <Spin className="mr-3" />
+                  <div>
+                    <p className="font-medium">Video processing in progress</p>
+                    <p className="text-sm text-gray-500">This may take a minute or two depending on the video size.</p>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {mediaItems
                   .filter(item => item.type === 'video')

@@ -11,6 +11,11 @@ export const LandingImagesProvider = ({ children }) => {
   const [landingMedia, setLandingMedia] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({
+    isUploading: false,
+    progress: 0,
+    type: null
+  });
 
   const getAuthHeaders = () => {
     const token = Cookies.get('token');
@@ -49,6 +54,27 @@ export const LandingImagesProvider = ({ children }) => {
         ? { media } 
         : { images: media };
       
+      // Validate media items before sending
+      if (dataToSend.media) {
+        // Ensure all media items have the correct format
+        dataToSend.media = dataToSend.media.map(item => {
+          // If it's just a string URL, convert to object
+          if (typeof item === 'string') {
+            return { url: item, type: 'image' };
+          }
+          
+          // Ensure all video items have required properties
+          if (item.type === 'video' && !item.url) {
+            console.warn('Invalid video item found:', item);
+            return null;
+          }
+          
+          return item;
+        }).filter(Boolean); // Remove any null items
+      }
+      
+      console.log('Saving landing media:', dataToSend);
+      
       const response = await axios.post(
         `${process.env.REACT_APP_BACKEND_URL}/landing-images/add`,
         dataToSend,
@@ -60,6 +86,7 @@ export const LandingImagesProvider = ({ children }) => {
       setLandingMedia(response.data.media || []);
       setError(null);
     } catch (err) {
+      console.error('Error saving landing media:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -67,13 +94,23 @@ export const LandingImagesProvider = ({ children }) => {
     }
   };
 
+  const trackUploadProgress = (type, progress) => {
+    setUploadProgress({
+      isUploading: progress < 100,
+      progress,
+      type
+    });
+  };
+
   const value = {
     landingImages,
     landingMedia,
     loading,
     error,
+    uploadProgress,
     fetchLandingImages,
-    saveLandingImages
+    saveLandingImages,
+    trackUploadProgress
   };
 
   return (
