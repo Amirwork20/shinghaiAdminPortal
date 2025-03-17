@@ -140,9 +140,37 @@ export const ProductProvider = ({ children }) => {
 
   const deleteProduct = async (id) => {
     try {
+      // Get the product details first to access image URLs
       const headers = getAuthHeaders();
+      const productToDelete = await axios.get(`${API_URL}/products/${id}`, { headers })
+        .then(response => response.data)
+        .catch(error => {
+          console.error('Error fetching product for deletion:', error);
+          return null;
+        });
+      
+      // Deactivate the product
       await axios.put(`${API_URL}/products/deactivate/${id}`, null, { headers });
       setProducts(prevProducts => prevProducts.filter(product => product._id !== id));
+      
+      // Delete associated images if product was found
+      if (productToDelete) {
+        // Delete main image
+        if (productToDelete.image_url) {
+          deleteImage(productToDelete.image_url).catch(err => {
+            console.error('Failed to delete main product image:', err);
+          });
+        }
+        
+        // Delete tab images
+        if (productToDelete.tabs_image_url && Array.isArray(productToDelete.tabs_image_url)) {
+          for (const imageUrl of productToDelete.tabs_image_url) {
+            deleteImage(imageUrl).catch(err => {
+              console.error(`Failed to delete tab image ${imageUrl}:`, err);
+            });
+          }
+        }
+      }
     } catch (error) {
       console.error('Error deleting product:', error);
       // Delete locally if API fails
@@ -260,12 +288,72 @@ export const ProductProvider = ({ children }) => {
     }
   };
 
-  const deleteImage = async (key) => {
+  const deleteImage = async (imageUrl) => {
     try {
+      // Extract the key from the image URL
+      let key = imageUrl;
+      
+      // If it's a full URL, extract just the filename/path portion
+      if (imageUrl && imageUrl.includes('/')) {
+        // Handle full URL paths (could be multiple formats)
+        if (imageUrl.includes('amazonaws.com')) {
+          // Extract everything after the bucket name in S3 URL
+          const matches = imageUrl.match(/amazonaws\.com\/(.+)$/);
+          if (matches && matches[1]) {
+            key = matches[1];
+          } else {
+            const urlParts = imageUrl.split('/');
+            key = urlParts[urlParts.length - 1];
+          }
+        } else {
+          // Simple path - just get the filename
+          const urlParts = imageUrl.split('/');
+          key = urlParts[urlParts.length - 1];
+        }
+      }
+      
+      console.log('Deleting image with key:', key);
+      
       const headers = getAuthHeaders();
       await axios.delete(`${API_URL}/products/delete-image/${key}`, { headers });
+      return true;
     } catch (error) {
       console.error('Error deleting image:', error);
+      throw error;
+    }
+  };
+
+  const deleteVideo = async (videoUrl) => {
+    try {
+      // Extract the key from the video URL
+      let key = videoUrl;
+      
+      // If it's a full URL, extract just the filename/path portion
+      if (videoUrl && videoUrl.includes('/')) {
+        // Handle full URL paths (could be multiple formats)
+        if (videoUrl.includes('amazonaws.com')) {
+          // Extract everything after the bucket name in S3 URL
+          const matches = videoUrl.match(/amazonaws\.com\/(.+)$/);
+          if (matches && matches[1]) {
+            key = matches[1];
+          } else {
+            const urlParts = videoUrl.split('/');
+            key = urlParts[urlParts.length - 1];
+          }
+        } else {
+          // Simple path - just get the filename
+          const urlParts = videoUrl.split('/');
+          key = urlParts[urlParts.length - 1];
+        }
+      }
+      
+      console.log('Deleting video with key:', key);
+      
+      const headers = getAuthHeaders();
+      await axios.delete(`${API_URL}/products/delete-video/${key}`, { headers });
+      return true;
+    } catch (error) {
+      console.error('Error deleting video:', error);
       throw error;
     }
   };
@@ -288,7 +376,8 @@ export const ProductProvider = ({ children }) => {
     setSelectedProduct,
     uploadImage,
     uploadVideo,
-    deleteImage
+    deleteImage,
+    deleteVideo
   };
 
   return (

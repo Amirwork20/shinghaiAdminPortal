@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLandingImages } from '../../context/LandingImagesContext';
 import { useProduct } from '../../context/ProductContext';
 import { message, Button, Upload, Spin, Layout, Modal, Tabs, Select, Card, Badge, Tooltip, Progress } from 'antd';
-import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined, InfoCircleOutlined, DeleteOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 const { Option } = Select;
@@ -16,7 +16,7 @@ const LandingImages = () => {
   const [previewType, setPreviewType] = useState('image');
   const [mediaItems, setMediaItems] = useState([]);
   const [optimizationStats, setOptimizationStats] = useState(null);
-  const { uploadImage, uploadVideo } = useProduct();
+  const { uploadImage, uploadVideo, deleteImage, deleteVideo } = useProduct();
   const { 
     landingImages = [], 
     landingMedia = [],
@@ -212,9 +212,47 @@ const LandingImages = () => {
     }
   };
 
-  const handleDeleteMedia = (url) => {
-    setMediaItems(prev => prev.filter(item => item.url !== url));
-    message.success('Media removed from list');
+  const handleDeleteMedia = async (url, mediaType) => {
+    // Extract just the filename from the URL for logging/display
+    const fileName = url.split('/').pop();
+    
+    Modal.confirm({
+      title: `Delete ${mediaType === 'video' ? 'Video' : 'Image'}`,
+      content: `Are you sure you want to delete this ${mediaType}? (${fileName}) This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          message.loading({
+            content: `Deleting ${mediaType}...`,
+            key: 'deleteMedia',
+            duration: 0
+          });
+          
+          // Delete from S3 based on media type
+          if (mediaType === 'video') {
+            await deleteVideo(url);
+          } else {
+            await deleteImage(url);
+          }
+          
+          // Remove from local state
+          setMediaItems(prev => prev.filter(item => item.url !== url));
+          
+          message.success({
+            content: `${mediaType === 'video' ? 'Video' : 'Image'} deleted successfully`,
+            key: 'deleteMedia'
+          });
+        } catch (error) {
+          console.error(`Error deleting ${mediaType}:`, error);
+          message.error({
+            content: `Failed to delete ${mediaType}: ${error.message || 'Unknown error'}`,
+            key: 'deleteMedia'
+          });
+        }
+      }
+    });
   };
 
   const handlePreview = (item) => {
@@ -225,6 +263,31 @@ const LandingImages = () => {
 
   const handleSave = async () => {
     try {
+      // Get the previous media items from the server
+      const previousMediaItems = landingMedia.length > 0 ? landingMedia : 
+                               landingImages.map(url => ({ url, type: 'image' }));
+      
+      // Find media items that were removed by the user
+      const removedMediaItems = previousMediaItems.filter(prevItem => 
+        !mediaItems.some(currentItem => currentItem.url === prevItem.url)
+      );
+      
+      // Delete each removed item from S3
+      for (const item of removedMediaItems) {
+        try {
+          if (item.type === 'video') {
+            await deleteVideo(item.url);
+          } else {
+            await deleteImage(item.url);
+          }
+          console.log(`Deleted ${item.type} from S3:`, item.url);
+        } catch (err) {
+          console.error(`Failed to delete ${item.type} from S3:`, err);
+          // Continue with other deletions even if one fails
+        }
+      }
+      
+      // Save the updated media list
       await saveLandingImages(mediaItems);
       message.success('Landing media saved successfully');
     } catch (err) {
@@ -372,7 +435,7 @@ const LandingImages = () => {
                       hoverable
                       cover={
                         item.type === 'video' ? (
-                          <div className="h-32 bg-gray-100 flex items-center justify-center">
+                          <div className="h-32 bg-gray-100 flex items-center justify-center relative">
                             {item.posterUrl ? (
                               <div className="relative w-full h-full">
                                 <img 
@@ -383,9 +446,31 @@ const LandingImages = () => {
                                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
                                   <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
                                 </div>
+                                <Button
+                                  icon={<DeleteOutlined />}
+                                  danger
+                                  size="small"
+                                  style={{ position: 'absolute', top: 5, right: 5 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteMedia(item.url, 'video');
+                                  }}
+                                />
                               </div>
                             ) : (
-                              <VideoCameraOutlined style={{ fontSize: 32 }} />
+                              <>
+                                <VideoCameraOutlined style={{ fontSize: 32 }} />
+                                <Button
+                                  icon={<DeleteOutlined />}
+                                  danger
+                                  size="small"
+                                  style={{ position: 'absolute', top: 5, right: 5 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteMedia(item.url, 'video');
+                                  }}
+                                />
+                              </>
                             )}
                           </div>
                         ) : (
@@ -395,11 +480,21 @@ const LandingImages = () => {
                               src={item.url} 
                               className="h-32 w-full object-cover"
                             />
+                            <Button
+                              icon={<DeleteOutlined />}
+                              danger
+                              size="small"
+                              style={{ position: 'absolute', top: 5, right: 5 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMedia(item.url, 'image');
+                              }}
+                            />
                             {item.placeholderUrl && (
                               <Badge 
                                 count="Optimized" 
                                 style={{ backgroundColor: '#52c41a' }}
-                                className="absolute top-2 right-2"
+                                className="absolute top-2 left-2"
                               />
                             )}
                           </div>
@@ -409,7 +504,7 @@ const LandingImages = () => {
                         <Button type="link" onClick={() => handlePreview(item)}>
                           Preview
                         </Button>,
-                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url)}>
+                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url, item.type)}>
                           Delete
                         </Button>
                       ]}
@@ -472,11 +567,21 @@ const LandingImages = () => {
                             src={item.url} 
                             className="h-32 w-full object-cover"
                           />
+                          <Button
+                            icon={<DeleteOutlined />}
+                            danger
+                            size="small"
+                            style={{ position: 'absolute', top: 5, right: 5 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMedia(item.url, 'image');
+                            }}
+                          />
                           {item.placeholderUrl && (
                             <Badge 
                               count="Optimized" 
                               style={{ backgroundColor: '#52c41a' }}
-                              className="absolute top-2 right-2"
+                              className="absolute top-2 left-2"
                             />
                           )}
                         </div>
@@ -485,7 +590,7 @@ const LandingImages = () => {
                         <Button type="link" onClick={() => handlePreview(item)}>
                           Preview
                         </Button>,
-                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url)}>
+                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'image')}>
                           Delete
                         </Button>
                       ]}
@@ -539,7 +644,7 @@ const LandingImages = () => {
                       key={index}
                       hoverable
                       cover={
-                        <div className="h-32 bg-gray-100 flex items-center justify-center">
+                        <div className="h-32 bg-gray-100 flex items-center justify-center relative">
                           {item.posterUrl ? (
                             <div className="relative w-full h-full">
                               <img 
@@ -550,9 +655,31 @@ const LandingImages = () => {
                               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
                                 <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
                               </div>
+                              <Button
+                                icon={<DeleteOutlined />}
+                                danger
+                                size="small"
+                                style={{ position: 'absolute', top: 5, right: 5 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteMedia(item.url, 'video');
+                                }}
+                              />
                             </div>
                           ) : (
-                            <VideoCameraOutlined style={{ fontSize: 32 }} />
+                            <>
+                              <VideoCameraOutlined style={{ fontSize: 32 }} />
+                              <Button
+                                icon={<DeleteOutlined />}
+                                danger
+                                size="small"
+                                style={{ position: 'absolute', top: 5, right: 5 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteMedia(item.url, 'video');
+                                }}
+                              />
+                            </>
                           )}
                         </div>
                       }
@@ -560,7 +687,7 @@ const LandingImages = () => {
                         <Button type="link" onClick={() => handlePreview(item)}>
                           Preview
                         </Button>,
-                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url)}>
+                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'video')}>
                           Delete
                         </Button>
                       ]}

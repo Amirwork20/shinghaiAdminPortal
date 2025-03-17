@@ -17,7 +17,7 @@ const EditProduct = () => {
   const { id } = useParams();
   const [form] = Form.useForm();
   const navigate = useNavigate();
-  const { updateProduct, getProductById, uploadImage } = useProduct();
+  const { updateProduct, getProductById, uploadImage, deleteImage } = useProduct();
   const { categories, fetchCategories, isLoading: categoriesLoading } = useCategory();
   const { mainCategories, fetchMainCategories, isLoading: mainCategoriesLoading } = useMainCategory();
   const { subCategories, fetchSubCategories, isLoading: subCategoriesLoading } = useSubCategory();
@@ -121,6 +121,35 @@ const EditProduct = () => {
     setLoading(true);
     try {
       const formattedValues = formatProductData(values);
+      
+      // Get the original product to compare images
+      const originalProduct = await getProductById(id);
+      
+      // If the main image has changed, delete the old one
+      if (originalProduct.image_url && originalProduct.image_url !== formattedValues.image_url) {
+        try {
+          await deleteImage(originalProduct.image_url);
+        } catch (err) {
+          console.error('Failed to delete old main image:', err);
+        }
+      }
+      
+      // Check for tab images that were removed
+      if (originalProduct.tabs_image_url && Array.isArray(originalProduct.tabs_image_url)) {
+        const removedTabImages = originalProduct.tabs_image_url.filter(
+          oldUrl => !formattedValues.tabs_image_url.includes(oldUrl)
+        );
+        
+        // Delete each removed tab image
+        for (const imageUrl of removedTabImages) {
+          try {
+            await deleteImage(imageUrl);
+          } catch (err) {
+            console.error(`Failed to delete removed tab image ${imageUrl}:`, err);
+          }
+        }
+      }
+      
       await updateProduct(id, formattedValues);
       message.success('Product updated successfully');
       navigate('/dashboard/products');
@@ -175,6 +204,16 @@ const EditProduct = () => {
     }
     if (status === 'done') {
       try {
+        // Delete the old image if it exists
+        if (mainImageUrl) {
+          try {
+            await deleteImage(mainImageUrl);
+          } catch (err) {
+            console.error('Failed to delete old main image:', err);
+            // Continue even if image deletion fails
+          }
+        }
+        
         const response = await uploadImage(originFileObj);
         
         // Extract the string URL from the response object
@@ -238,9 +277,19 @@ const EditProduct = () => {
 
   const handleDelete = (url) => {
     if (url === mainImageUrl) {
+      // Delete the image from S3
+      deleteImage(url).catch(err => {
+        console.error('Failed to delete image from storage:', err);
+      });
+      
       setMainImageUrl(null);
       form.setFieldsValue({ mainImage: undefined });
     } else {
+      // Delete the image from S3
+      deleteImage(url).catch(err => {
+        console.error('Failed to delete tab image from storage:', err);
+      });
+      
       setTabImageUrls(prev => prev.filter(u => u !== url));
     }
   };

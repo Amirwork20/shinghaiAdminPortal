@@ -16,7 +16,7 @@ const { Content } = Layout;
 const AddProduct = () => {
   const [form] = Form.useForm();
   const navigate = useNavigate();
-  const { addProduct, uploadImage } = useProduct();
+  const { addProduct, uploadImage, deleteImage } = useProduct();
   const { categories, fetchCategories } = useCategory();
   const { attributes } = useAttribute();
   const { mainCategories, fetchMainCategories } = useMainCategory();
@@ -139,6 +139,16 @@ const AddProduct = () => {
     }
     if (status === 'done') {
       try {
+        // Delete the old image if it exists
+        if (mainImageUrl) {
+          try {
+            await deleteImage(mainImageUrl);
+          } catch (err) {
+            console.error('Failed to delete old main image:', err);
+            // Continue even if image deletion fails
+          }
+        }
+        
         const response = await uploadImage(originFileObj);
         
         // Extract the string URL from the response object
@@ -205,9 +215,19 @@ const AddProduct = () => {
 
   const handleDelete = (url) => {
     if (url === mainImageUrl) {
+      // Delete the image from S3
+      deleteImage(url).catch(err => {
+        console.error('Failed to delete image from storage:', err);
+      });
+      
       setMainImageUrl(null);
       form.setFieldsValue({ mainImage: undefined });
     } else {
+      // Delete the image from S3
+      deleteImage(url).catch(err => {
+        console.error('Failed to delete tab image from storage:', err);
+      });
+      
       setTabImageUrls(prev => prev.filter(u => u !== url));
     }
   };

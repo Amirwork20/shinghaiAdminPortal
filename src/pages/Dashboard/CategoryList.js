@@ -10,7 +10,7 @@ const { Option } = Select;
 const CategoryList = () => {
   const { categories, addCategory, updateCategory, deleteCategory, fetchCategories, isLoading, error } = useCategory();
   const { subCategories, fetchSubCategories } = useSubCategory();
-  const { uploadImage } = useProduct();
+  const { uploadImage, deleteImage } = useProduct();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
@@ -81,6 +81,16 @@ const CategoryList = () => {
           imageUrl = response.toString();
         }
         
+        // Delete the previous image if it exists and is different
+        if (editingCategory?.image_url && editingCategory.image_url !== imageUrl) {
+          try {
+            await deleteImage(editingCategory.image_url);
+            console.log('Previous image deleted successfully');
+          } catch (err) {
+            console.error('Failed to delete previous image:', err);
+          }
+        }
+        
         setImageUrl(imageUrl);
         message.success(`${info.file.name} file uploaded successfully`);
       } catch (error) {
@@ -100,6 +110,7 @@ const CategoryList = () => {
       };
 
       if (editingCategory) {
+        // Note: We don't need to delete the old image here as it's already handled in handleImageUpload
         await updateCategory(editingCategory._id, categoryData);
         message.success('Category updated successfully');
       } else {
@@ -118,7 +129,22 @@ const CategoryList = () => {
       content: 'This action cannot be undone.',
       onOk: async () => {
         try {
+          // Find the category to get its image URL
+          const categoryToDelete = categories.find(cat => cat._id === id);
+          
+          // Delete the category
           await deleteCategory(id);
+          
+          // Delete the image if it exists
+          if (categoryToDelete && categoryToDelete.image_url) {
+            try {
+              await deleteImage(categoryToDelete.image_url);
+            } catch (err) {
+              console.error('Failed to delete image:', err);
+              // Category was already deleted, so just log error
+            }
+          }
+          
           message.success('Category deleted successfully');
         } catch (error) {
           // Error message will be shown from the context via useEffect
@@ -260,11 +286,27 @@ const CategoryList = () => {
             {editingCategory?.image_url && !imageUrl && (
               <div className="mb-3">
                 <p className="text-sm text-gray-500 mb-2">Current Image:</p>
-                <img 
-                  src={editingCategory.image_url} 
-                  alt="Current Category" 
-                  style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', marginBottom: '1rem' }} 
-                />
+                <div style={{ position: 'relative' }}>
+                  <img 
+                    src={editingCategory.image_url} 
+                    alt="Current Category" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', marginBottom: '1rem' }} 
+                  />
+                  <Button
+                    icon={<DeleteOutlined />}
+                    danger
+                    style={{ position: 'absolute', top: 5, right: 5 }}
+                    onClick={async () => {
+                      try {
+                        await deleteImage(editingCategory.image_url);
+                        setEditingCategory(prev => ({ ...prev, image_url: null }));
+                        message.success('Image deleted successfully');
+                      } catch (error) {
+                        message.error('Failed to delete image');
+                      }
+                    }}
+                  />
+                </div>
               </div>
             )}
             <Upload
