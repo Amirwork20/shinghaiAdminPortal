@@ -225,7 +225,7 @@ const LandingImages = () => {
       onOk: async () => {
         try {
           message.loading({
-            content: `Deleting ${mediaType}...`,
+            content: `Deleting ${mediaType} ${fileName}...`,
             key: 'deleteMedia',
             duration: 0
           });
@@ -233,21 +233,23 @@ const LandingImages = () => {
           // Delete from S3 based on media type
           if (mediaType === 'video') {
             await deleteVideo(url);
+            console.log(`Video deleted: ${fileName}`);
           } else {
             await deleteImage(url);
+            console.log(`Image deleted: ${fileName}`);
           }
           
           // Remove from local state
           setMediaItems(prev => prev.filter(item => item.url !== url));
           
           message.success({
-            content: `${mediaType === 'video' ? 'Video' : 'Image'} deleted successfully`,
+            content: `${mediaType === 'video' ? 'Video' : 'Image'} ${fileName} deleted successfully`,
             key: 'deleteMedia'
           });
         } catch (error) {
-          console.error(`Error deleting ${mediaType}:`, error);
+          console.error(`Error deleting ${mediaType} (${fileName}):`, error);
           message.error({
-            content: `Failed to delete ${mediaType}: ${error.message || 'Unknown error'}`,
+            content: `Failed to delete ${mediaType} ${fileName}: ${error.message || 'Unknown error'}`,
             key: 'deleteMedia'
           });
         }
@@ -275,12 +277,28 @@ const LandingImages = () => {
       // Delete each removed item from S3
       for (const item of removedMediaItems) {
         try {
+          const fileName = item.url.split('/').pop();
+          
+          // Show loading message
+          message.loading({
+            content: `Cleaning up ${item.type} ${fileName}...`,
+            key: `delete-${fileName}`,
+            duration: 0
+          });
+          
           if (item.type === 'video') {
             await deleteVideo(item.url);
+            console.log(`Deleted video from S3:`, fileName);
           } else {
             await deleteImage(item.url);
+            console.log(`Deleted image from S3:`, fileName);
           }
-          console.log(`Deleted ${item.type} from S3:`, item.url);
+          
+          message.success({
+            content: `${item.type === 'video' ? 'Video' : 'Image'} ${fileName} removed.`,
+            key: `delete-${fileName}`,
+            duration: 2
+          });
         } catch (err) {
           console.error(`Failed to delete ${item.type} from S3:`, err);
           // Continue with other deletions even if one fails
@@ -291,7 +309,8 @@ const LandingImages = () => {
       await saveLandingImages(mediaItems);
       message.success('Landing media saved successfully');
     } catch (err) {
-      message.error('Failed to save landing media');
+      console.error('Failed to save landing media:', err);
+      message.error(`Failed to save landing media: ${err.message || 'Unknown error'}`);
     }
   };
 

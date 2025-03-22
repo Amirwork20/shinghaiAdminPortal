@@ -290,23 +290,29 @@ export const ProductProvider = ({ children }) => {
 
   const deleteImage = async (imageUrl) => {
     try {
+      if (!imageUrl) {
+        console.error('Invalid imageUrl provided to deleteImage');
+        return false;
+      }
+
       // Extract the key from the image URL
       let key = imageUrl;
       
-      // If it's a full URL, extract just the filename/path portion
-      if (imageUrl && imageUrl.includes('/')) {
-        // Handle full URL paths (could be multiple formats)
-        if (imageUrl.includes('amazonaws.com')) {
-          // Extract everything after the bucket name in S3 URL
-          const matches = imageUrl.match(/amazonaws\.com\/(.+)$/);
-          if (matches && matches[1]) {
-            key = matches[1];
-          } else {
-            const urlParts = imageUrl.split('/');
-            key = urlParts[urlParts.length - 1];
-          }
+      // If it's a full URL, extract the path portion
+      if (imageUrl.includes('amazonaws.com')) {
+        // Extract everything after the bucket name in S3 URL
+        const matches = imageUrl.match(/amazonaws\.com\/(.+)$/);
+        if (matches && matches[1]) {
+          key = matches[1];
+        }
+      } else if (imageUrl.includes('/')) {
+        // Handle paths with slashes but not full URLs
+        // If it already has 'images/' prefix, keep it
+        if (imageUrl.includes('images/')) {
+          const parts = imageUrl.split('images/');
+          key = parts.length > 1 ? `images/${parts[1]}` : imageUrl;
         } else {
-          // Simple path - just get the filename
+          // Just get the filename as a fallback
           const urlParts = imageUrl.split('/');
           key = urlParts[urlParts.length - 1];
         }
@@ -315,7 +321,7 @@ export const ProductProvider = ({ children }) => {
       console.log('Deleting image with key:', key);
       
       const headers = getAuthHeaders();
-      await axios.delete(`${API_URL}/products/delete-image/${key}`, { headers });
+      await axios.delete(`${API_URL}/products/delete-image/${encodeURIComponent(key)}`, { headers });
       return true;
     } catch (error) {
       console.error('Error deleting image:', error);
@@ -325,23 +331,29 @@ export const ProductProvider = ({ children }) => {
 
   const deleteVideo = async (videoUrl) => {
     try {
+      if (!videoUrl) {
+        console.error('Invalid videoUrl provided to deleteVideo');
+        return false;
+      }
+
       // Extract the key from the video URL
       let key = videoUrl;
       
-      // If it's a full URL, extract just the filename/path portion
-      if (videoUrl && videoUrl.includes('/')) {
-        // Handle full URL paths (could be multiple formats)
-        if (videoUrl.includes('amazonaws.com')) {
-          // Extract everything after the bucket name in S3 URL
-          const matches = videoUrl.match(/amazonaws\.com\/(.+)$/);
-          if (matches && matches[1]) {
-            key = matches[1];
-          } else {
-            const urlParts = videoUrl.split('/');
-            key = urlParts[urlParts.length - 1];
-          }
+      // If it's a full URL, extract the path portion
+      if (videoUrl.includes('amazonaws.com')) {
+        // Extract everything after the bucket name in S3 URL
+        const matches = videoUrl.match(/amazonaws\.com\/(.+)$/);
+        if (matches && matches[1]) {
+          key = matches[1];
+        }
+      } else if (videoUrl.includes('/')) {
+        // Handle paths with slashes but not full URLs
+        // If it already has 'videos/' prefix, keep it
+        if (videoUrl.includes('videos/')) {
+          const parts = videoUrl.split('videos/');
+          key = parts.length > 1 ? `videos/${parts[1]}` : videoUrl;
         } else {
-          // Simple path - just get the filename
+          // Just get the filename as a fallback
           const urlParts = videoUrl.split('/');
           key = urlParts[urlParts.length - 1];
         }
@@ -350,7 +362,7 @@ export const ProductProvider = ({ children }) => {
       console.log('Deleting video with key:', key);
       
       const headers = getAuthHeaders();
-      await axios.delete(`${API_URL}/products/delete-video/${key}`, { headers });
+      await axios.delete(`${API_URL}/products/delete-video/${encodeURIComponent(key)}`, { headers });
       return true;
     } catch (error) {
       console.error('Error deleting video:', error);

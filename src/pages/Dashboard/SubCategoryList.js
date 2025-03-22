@@ -115,6 +115,12 @@ const SubCategoryList = () => {
 
   const handleSubmit = async (values) => {
     try {
+      // Check if image is missing
+      if (!imageUrl && !editingCategory?.image_url) {
+        message.warning('Sub-category image is missing. Please upload an image.');
+        return;
+      }
+      
       const categoryData = {
         ...values,
         image_url: imageUrl || editingCategory?.image_url || null,
@@ -143,15 +149,32 @@ const SubCategoryList = () => {
           // Find the subcategory to get its image URL
           const subCategoryToDelete = subCategories.find(cat => cat._id === id);
           
-          // Delete the subcategory
+          // Delete the subcategory from the database
           await deleteSubCategory(id);
           
           // Delete the image if it exists
           if (subCategoryToDelete && subCategoryToDelete.image_url) {
             try {
+              const fileName = subCategoryToDelete.image_url.split('/').pop();
+              message.loading({
+                content: `Deleting image ${fileName}...`,
+                key: 'deleteImage',
+                duration: 0
+              });
+              
               await deleteImage(subCategoryToDelete.image_url);
+              
+              message.success({
+                content: `Image ${fileName} deleted successfully`,
+                key: 'deleteImage'
+              });
+              console.log('Sub-category image deleted successfully:', fileName);
             } catch (err) {
               console.error('Failed to delete image:', err);
+              message.error({
+                content: `Failed to delete image: ${err.message || 'Unknown error'}`,
+                key: 'deleteImage'
+              });
               // Subcategory was already deleted, so just log error
             }
           }
@@ -280,7 +303,11 @@ const SubCategoryList = () => {
             <Input />
           </Form.Item>
 
-          <Form.Item label="Category Image">
+          <Form.Item 
+            label="Category Image"
+            required
+            tooltip="Please upload an image for the category"
+          >
             {editingCategory?.image_url && !imageUrl && (
               <div className="mb-3">
                 <p className="text-sm text-gray-500 mb-2">Current Image:</p>
@@ -305,6 +332,11 @@ const SubCategoryList = () => {
                     }}
                   />
                 </div>
+              </div>
+            )}
+            {!imageUrl && !editingCategory?.image_url && (
+              <div className="mb-2">
+                <p className="text-sm text-red-500">An image is required. Please upload one.</p>
               </div>
             )}
             <Upload
