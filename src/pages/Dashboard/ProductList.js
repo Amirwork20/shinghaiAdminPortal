@@ -69,37 +69,64 @@ const ProductList = () => {
       width: 150,
     },
     {
+      title: 'Fabric',
+      dataIndex: ['fabric_id', 'fabric_name'],
+      key: 'fabric',
+      width: 100,
+      render: (fabricName) => fabricName || '-',
+    },
+    {
+      title: 'Season',
+      dataIndex: 'season',
+      key: 'season',
+      width: 100,
+      render: (season) => season || 'All Season',
+    },
+    {
       title: 'Actual Price',
       dataIndex: 'actual_price',
       key: 'actual_price',
       width: 100,
-      render: (price) => `${parseFloat(price).toFixed(2)}`,
+      render: (price) => `$${parseFloat(price).toFixed(2)}`,
+      sorter: (a, b) => a.actual_price - b.actual_price,
     },
     {
       title: 'Selling Price',
       dataIndex: 'price',
       key: 'price',
       width: 100,
-      render: (price) => `${parseFloat(price).toFixed(2)}`,
+      render: (price) => `$${parseFloat(price).toFixed(2)}`,
+      sorter: (a, b) => a.price - b.price,
     },
     {
       title: 'Discount %',
       dataIndex: 'off_percentage_value',
       key: 'off_percentage_value',
       width: 100,
-      render: (value) => `${value}%`,
+      render: (value, record) => {
+        if (value !== undefined && value !== null) {
+          return `${value}%`;
+        }
+        if (record.actual_price && record.price && record.actual_price > record.price) {
+          const discount = ((record.actual_price - record.price) / record.actual_price) * 100;
+          return `${discount.toFixed(2)}%`;
+        }
+        return '0%';
+      },
     },
     {
       title: 'Stock',
       dataIndex: 'quantity',
       key: 'quantity',
       width: 80,
+      sorter: (a, b) => a.quantity - b.quantity,
     },
     {
       title: 'Sold',
       dataIndex: 'sold',
       key: 'sold',
       width: 80,
+      sorter: (a, b) => a.sold - b.sold,
     },
     {
       title: 'Max Qty/User',
@@ -112,14 +139,16 @@ const ProductList = () => {
       dataIndex: 'delivery_charges',
       key: 'delivery_charges',
       width: 120,
-      render: (charges) => `${parseFloat(charges).toFixed(2)}`,
+      render: (charges) => charges ? `$${parseFloat(charges).toFixed(2)}` : '$0.00',
+      sorter: (a, b) => (a.delivery_charges || 0) - (b.delivery_charges || 0),
     },
     {
       title: 'Cost',
       dataIndex: 'cost',
       key: 'cost',
       width: 100,
-      render: (cost) => `${parseFloat(cost).toFixed(2)}`,
+      render: (cost) => `$${parseFloat(cost).toFixed(2)}`,
+      sorter: (a, b) => a.cost - b.cost,
     },
     {
       title: 'Status',
@@ -171,7 +200,7 @@ const ProductList = () => {
         <Table 
           columns={columns} 
           dataSource={filteredProducts} 
-          rowKey="id" 
+          rowKey="_id" 
           loading={isLoading}
           scroll={{ x: 'max-content' }}
           pagination={{
@@ -220,8 +249,22 @@ const ProductList = () => {
             )}
 
             <p><strong>Title:</strong> {selectedProduct.title}</p>
-            <p><strong>Price:</strong> ${parseFloat(selectedProduct.price).toFixed(2)}</p>
+            <p><strong>Fabric:</strong> {selectedProduct.fabric_id?.fabric_name || 'Not specified'}</p>
+            <p><strong>Season:</strong> {selectedProduct.season || 'All Season'}</p>
+            <p><strong>Actual Price:</strong> ${parseFloat(selectedProduct.actual_price).toFixed(2)}</p>
+            <p><strong>Selling Price:</strong> ${parseFloat(selectedProduct.price).toFixed(2)}</p>
+            <p><strong>Discount:</strong> {
+              selectedProduct.off_percentage_value ? 
+              `${selectedProduct.off_percentage_value}%` : 
+              selectedProduct.actual_price > selectedProduct.price ? 
+              `${(((selectedProduct.actual_price - selectedProduct.price) / selectedProduct.actual_price) * 100).toFixed(2)}%` : 
+              '0%'
+            }</p>
+            <p><strong>Delivery Charges:</strong> ${selectedProduct.delivery_charges ? parseFloat(selectedProduct.delivery_charges).toFixed(2) : '0.00'}</p>
+            <p><strong>Cost:</strong> ${parseFloat(selectedProduct.cost).toFixed(2)}</p>
             <p><strong>Stock:</strong> {selectedProduct.quantity}</p>
+            <p><strong>Sold:</strong> {selectedProduct.sold}</p>
+            <p><strong>SKU:</strong> {selectedProduct.sku}</p>
             <p><strong>Description:</strong> {selectedProduct.description}</p>
             <h3>Attributes:</h3>
             {selectedProduct.attributes && Array.isArray(selectedProduct.attributes) ? (
