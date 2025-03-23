@@ -203,7 +203,13 @@ const OrderList = () => {
                 <ul>
                   {selectedOrder.order_items.map((item, index) => (
                     <li key={index}>
-                      Size: {item.size || 'N/A'}, 
+                      {item.attributes ? (
+                        <span>
+                          Attributes: {Object.entries(item.attributes).map(([key, value]) => `${key}: ${value}`).join(', ')},
+                        </span>
+                      ) : (
+                        <span>Size: {item.size || 'N/A'}, </span>
+                      )}
                       Quantity: {item.quantity || 0}, 
                       Price: ${item.price?.toFixed(2) || '0.00'}
                     </li>

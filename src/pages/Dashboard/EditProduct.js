@@ -8,6 +8,7 @@ import { useBrand } from '../../context/BrandContext';
 import { useAttribute } from '../../context/AttributesContext';
 import { useMainCategory } from '../../context/MainCategoryContext';
 import { useSubCategory } from '../../context/SubCategoryContext';
+import { useFabric } from '../../context/FabricContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -23,6 +24,7 @@ const EditProduct = () => {
   const { subCategories, fetchSubCategories, isLoading: subCategoriesLoading } = useSubCategory();
   const { attributes } = useAttribute();
   const { brands } = useBrand();
+  const { fabrics, fetchFabrics, isLoading: fabricsLoading } = useFabric();
   const [loading, setLoading] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState(null);
   const [tabImageUrls, setTabImageUrls] = useState([]);
@@ -33,6 +35,9 @@ const EditProduct = () => {
   const [selectedMainCategory, setSelectedMainCategory] = useState(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [filteredCategories, setFilteredCategories] = useState([]);
+  const [productUpdated, setProductUpdated] = useState(false);
+
+  const SEASONS = ['Summer', 'Winter', 'Spring', 'Fall', 'All Season'];
 
   useEffect(() => {
     const fetchAllCategories = async () => {
@@ -40,7 +45,8 @@ const EditProduct = () => {
         await Promise.all([
           fetchMainCategories(),
           fetchSubCategories(),
-          fetchCategories()
+          fetchCategories(),
+          fetchFabrics()
         ]);
       } catch (error) {
         console.error('Error fetching categories:', error);
@@ -49,7 +55,7 @@ const EditProduct = () => {
     };
 
     fetchAllCategories();
-  }, [fetchMainCategories, fetchSubCategories, fetchCategories]);
+  }, [fetchMainCategories, fetchSubCategories, fetchCategories, fetchFabrics]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -151,8 +157,9 @@ const EditProduct = () => {
       }
       
       await updateProduct(id, formattedValues);
+      setProductUpdated(true);
       message.success('Product updated successfully');
-      navigate('/dashboard/products');
+      navigate('/dashboard/products', { state: { productUpdated: true, productId: id } });
     } catch (error) {
       console.error('Error updating product:', error);
       message.error('Failed to update product: ' + error.message);
@@ -192,7 +199,11 @@ const EditProduct = () => {
       tabs_image_url: tabs_image_url, // Use filtered array of string URLs
       is_deal: values.is_deal || false,
       is_hot_deal: values.is_hot_deal || false,
-      vat_included: values.vat_included === undefined ? true : values.vat_included
+      vat_included: values.vat_included === undefined ? true : values.vat_included,
+      season: values.season || 'All Season',
+      fabric_id: values.fabric_id,
+      care_instructions: values.care_instructions || '',
+      disclaimer: values.disclaimer || ''
     };
   };
 
@@ -312,7 +323,7 @@ const EditProduct = () => {
       <Content style={{ padding: '24px', overflowY: 'auto' }}>
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl font-semibold mb-4">Edit Product</h2>
-          <Form form={form} onFinish={onFinish} layout="vertical" initialValues={{ attributes: [], vat_included: true }}>
+          <Form form={form} onFinish={onFinish} layout="vertical" initialValues={{ attributes: [], vat_included: true, season: 'All Season' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
               <Form.Item name="main_category_id" label="Main Category" rules={[{ required: true }]}>
                 <Select
@@ -377,6 +388,18 @@ const EditProduct = () => {
                 </Select>
               </Form.Item>
 
+              <Form.Item name="fabric_id" label="Fabric">
+                <Select placeholder="Select fabric" allowClear loading={fabricsLoading}>
+                  {fabrics
+                    .filter(fabric => fabric.is_active)
+                    .map(fabric => (
+                      <Option key={fabric._id} value={fabric._id}>
+                        {fabric.fabric_name}
+                      </Option>
+                    ))}
+                </Select>
+              </Form.Item>
+
               <Form.Item name="actual_price" label="Actual Price" rules={[{ required: true }]}>
                 <InputNumber
                   min={0}
@@ -424,14 +447,26 @@ const EditProduct = () => {
                   parser={value => Number(value)}
                 />
               </Form.Item>
+              <Form.Item name="care_instructions" label="Care Instructions">
+                <TextArea rows={4} placeholder="Enter care instructions for the product" />
+              </Form.Item>
+              <Form.Item name="disclaimer" label="Disclaimer">
+                <TextArea rows={4} placeholder="Enter any disclaimers for the product" />
+              </Form.Item>
+              <Form.Item 
+                name="season" 
+                label="Season"
+                rules={[{ required: true, message: 'Please select a season' }]}
+              >
+                <Select placeholder="Select season">
+                  {SEASONS.map(season => (
+                    <Option key={season} value={season}>
+                      {season}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
             </div>
-            <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-
-            <Form.Item name="description" label="Description" rules={[{ required: true }]}>
-              <TextArea rows={4} />
-            </Form.Item>
 
             <Form.List name="attributes">
               {(fields, { add, remove }) => (
@@ -643,6 +678,12 @@ const EditProduct = () => {
             <Form.Item>
               <Button type="primary" htmlType="submit" loading={loading}>
                 Update Product
+              </Button>
+              <Button 
+                style={{ marginLeft: '10px' }}
+                onClick={() => navigate('/dashboard/products')}
+              >
+                Cancel
               </Button>
             </Form.Item>
           </Form>

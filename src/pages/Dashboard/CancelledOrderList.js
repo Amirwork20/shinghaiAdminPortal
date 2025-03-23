@@ -184,7 +184,16 @@ const CancelledOrderList = () => {
                 {selectedOrder.order_items?.map((item, index) => (
                   <div key={index} className="border p-3 rounded">
                     <p><strong>Product:</strong> {item.product_id?.title}</p>
-                    <p><strong>Size:</strong> {item.size}</p>
+                    {item.attributes ? (
+                      <div>
+                        <strong>Attributes:</strong>
+                        {Object.entries(item.attributes).map(([key, value], attrIndex) => (
+                          <p key={attrIndex} className="ml-3">- {key}: {value}</p>
+                        ))}
+                      </div>
+                    ) : (
+                      item.size && <p><strong>Size:</strong> {item.size}</p>
+                    )}
                     <p><strong>Quantity:</strong> {item.quantity}</p>
                     <p><strong>Price:</strong> ${item.price?.toFixed(2)}</p>
                     {item.product_id?.image_url && (
