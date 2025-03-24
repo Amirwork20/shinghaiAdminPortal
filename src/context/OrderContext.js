@@ -218,7 +218,7 @@ export const OrderProvider = ({ children }) => {
   const getOrderDetails = useCallback(async (orderId) => {
     try {
       const headers = getAuthHeaders();
-      const response = await axios.get(`${API_URL}/orders/${orderId}`, { headers });
+      const response = await axios.get(`${API_URL}/orders/details/${orderId}`, { headers });
       
       return response.data.success ? response.data.data : null;
     } catch (error) {
@@ -235,6 +235,18 @@ export const OrderProvider = ({ children }) => {
       await fetchDeliveredOrders();
     } catch (error) {
       console.error('Error delivering order:', error);
+      throw error;
+    }
+  };
+
+  const revokeDeliveredOrder = async (id) => {
+    try {
+      const headers = getAuthHeaders();
+      await axios.put(`${API_URL}/orders/revoke-delivered/${id}`, null, { headers });
+      await fetchConfirmedOrders();
+      await fetchDeliveredOrders();
+    } catch (error) {
+      console.error('Error revoking delivered order:', error);
       throw error;
     }
   };
@@ -277,6 +289,7 @@ export const OrderProvider = ({ children }) => {
     cancelOrder,
     getOrderDetails,
     deliverOrder,
+    revokeDeliveredOrder,
     assignDeliveryType,
   };
 

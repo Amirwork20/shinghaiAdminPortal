@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { FiEye, FiCheckCircle, FiX } from 'react-icons/fi';
-import { Modal, Button, Table, message, Input } from 'antd';
+import { Modal, Button, Table, message, Input, Tooltip } from 'antd';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useOrder } from '../../context/OrderContext';
 import * as XLSX from 'xlsx';
 
 const { Search } = Input;
+const { confirm } = Modal;
 
 const OrderList = () => {
   const { pendingOrders = [], isLoading, fetchPendingOrders, confirmOrder, cancelOrder, getOrderDetails } = useOrder();
@@ -18,16 +20,21 @@ const OrderList = () => {
 
   const showModal = async (orderId) => {
     try {
+      console.log('Fetching order details for ID:', orderId);
       const orderDetails = await getOrderDetails(orderId);
-      if (orderDetails && orderDetails.data) {
-        setSelectedOrder(orderDetails.data);
-      } else {
+      console.log('Order details response:', orderDetails);
+      
+      if (orderDetails) {
         setSelectedOrder(orderDetails);
+        console.log('Selected order set:', orderDetails);
+      } else {
+        console.error('Order details returned null or undefined');
+        message.error('Failed to load order details data');
       }
       setIsModalVisible(true);
     } catch (error) {
-      message.error('Failed to fetch order details');
       console.error('Error fetching order details:', error);
+      message.error('Failed to fetch order details');
     }
   };
 
@@ -39,22 +46,112 @@ const OrderList = () => {
     setIsModalVisible(false);
   };
 
-  const handleConfirmOrder = async (id) => {
-    try {
-      await confirmOrder(id);
-      message.success('Order confirmed successfully');
-    } catch (error) {
-      message.error('Failed to confirm order');
-    }
+  const handleConfirmOrder = async (id, orderInfo) => {
+    const customerName = orderInfo.customer_details ? 
+      `${orderInfo.customer_details.first_name} ${orderInfo.customer_details.last_name}` : 
+      'Unknown';
+    
+    let confirmModal;  
+    
+    confirmModal = confirm({
+      title: 'Confirm Order',
+      icon: <ExclamationCircleOutlined style={{ color: '#1890ff' }} />,
+      content: (
+        <div>
+          <p>Are you sure you want to confirm this order?</p>
+          <p><strong>Order ID:</strong> {id}</p>
+          <p><strong>Customer:</strong> {customerName}</p>
+          <p><strong>Total:</strong> ${orderInfo.subtotal?.toFixed(2) || '0.00'}</p>
+        </div>
+      ),
+      okText: 'Yes, Confirm',
+      okType: 'primary',
+      cancelText: 'No',
+      okButtonProps: {
+        loading: false,
+      },
+      onOk: async () => {
+        // Set button to loading state
+        confirmModal.update({
+          okButtonProps: {
+            loading: true,
+          }
+        });
+        
+        try {
+          await confirmOrder(id);
+          message.success('Order confirmed successfully');
+          await fetchPendingOrders();
+          return Promise.resolve();
+        } catch (error) {
+          console.error('Error confirming order:', error);
+          message.error(`Failed to confirm order: ${error.message || 'Unknown error'}`);
+          
+          // Reset loading state on error
+          confirmModal.update({
+            okButtonProps: {
+              loading: false,
+            }
+          });
+          
+          return Promise.reject();
+        }
+      },
+    });
   };
 
-  const handleCancelOrder = async (id) => {
-    try {
-      await cancelOrder(id);
-      message.success('Order cancelled successfully');
-    } catch (error) {
-      message.error('Failed to cancel order');
-    }
+  const handleCancelOrder = async (id, orderInfo) => {
+    const customerName = orderInfo.customer_details ? 
+      `${orderInfo.customer_details.first_name} ${orderInfo.customer_details.last_name}` : 
+      'Unknown';
+      
+    let cancelModal;
+    
+    cancelModal = confirm({
+      title: 'Cancel Order',
+      icon: <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />,
+      content: (
+        <div>
+          <p>Are you sure you want to cancel this order?</p>
+          <p><strong>Order ID:</strong> {id}</p>
+          <p><strong>Customer:</strong> {customerName}</p>
+          <p><strong>Total:</strong> ${orderInfo.subtotal?.toFixed(2) || '0.00'}</p>
+        </div>
+      ),
+      okText: 'Yes, Cancel',
+      okType: 'danger',
+      cancelText: 'No',
+      okButtonProps: {
+        loading: false,
+      },
+      onOk: async () => {
+        // Set button to loading state
+        cancelModal.update({
+          okButtonProps: {
+            loading: true,
+          }
+        });
+        
+        try {
+          await cancelOrder(id);
+          message.success('Order cancelled successfully');
+          await fetchPendingOrders();
+          return Promise.resolve();
+        } catch (error) {
+          console.error('Error cancelling order:', error);
+          message.error(`Failed to cancel order: ${error.message || 'Unknown error'}`);
+          
+          // Reset loading state on error
+          cancelModal.update({
+            okButtonProps: {
+              loading: false,
+            }
+          });
+          
+          return Promise.reject();
+        }
+      },
+    });
   };
 
   const exportToExcel = () => {
@@ -126,21 +223,27 @@ const OrderList = () => {
       width: 150,
       render: (_, record) => (
         <div className="flex space-x-2">
-          <Button
-            icon={<FiEye />}
-            onClick={() => showModal(record._id)}
-            className="text-blue-600 hover:text-blue-800"
-          />
-          <Button
-            icon={<FiCheckCircle />}
-            onClick={() => handleConfirmOrder(record._id)}
-            className="text-green-600 hover:text-green-800"
-          />
-          <Button
-            icon={<FiX />}
-            onClick={() => handleCancelOrder(record._id)}
-            className="text-red-600 hover:text-red-800"
-          />
+          <Tooltip title="View Order Details">
+            <Button
+              icon={<FiEye />}
+              onClick={() => showModal(record._id)}
+              className="text-blue-600 hover:text-blue-800"
+            />
+          </Tooltip>
+          <Tooltip title="Confirm Order">
+            <Button
+              icon={<FiCheckCircle />}
+              onClick={() => handleConfirmOrder(record._id, record)}
+              className="text-green-600 hover:text-green-800"
+            />
+          </Tooltip>
+          <Tooltip title="Cancel Order">
+            <Button
+              icon={<FiX />}
+              onClick={() => handleCancelOrder(record._id, record)}
+              className="text-red-600 hover:text-red-800"
+            />
+          </Tooltip>
         </div>
       ),
     },
@@ -197,25 +300,28 @@ const OrderList = () => {
                 <p><strong>Delivery City:</strong> {selectedOrder.customer_details.delivery_city || 'N/A'}</p>
               </>
             )}
-            {selectedOrder.order_items && selectedOrder.order_items.length > 0 && (
-              <>
-                <p><strong>Items:</strong></p>
-                <ul>
+            {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
+              <div className="border-t border-b my-3 py-3">
+                <p className="font-semibold mb-2">Items:</p>
+                <ul className="space-y-2">
                   {selectedOrder.order_items.map((item, index) => (
-                    <li key={index}>
+                    <li key={index} className="border p-2 rounded">
+                      <p><strong>Product:</strong> {item.product_id?.title || 'N/A'}</p>
                       {item.attributes ? (
-                        <span>
-                          Attributes: {Object.entries(item.attributes).map(([key, value]) => `${key}: ${value}`).join(', ')},
-                        </span>
+                        <p>
+                          <strong>Attributes:</strong> {Object.entries(item.attributes).map(([key, value]) => `${key}: ${value}`).join(', ')}
+                        </p>
                       ) : (
-                        <span>Size: {item.size || 'N/A'}, </span>
+                        <p><strong>Size:</strong> {item.size || 'N/A'}</p>
                       )}
-                      Quantity: {item.quantity || 0}, 
-                      Price: ${item.price?.toFixed(2) || '0.00'}
+                      <p><strong>Quantity:</strong> {item.quantity || 0}</p>
+                      <p><strong>Price:</strong> ${item.price?.toFixed(2) || '0.00'}</p>
                     </li>
                   ))}
                 </ul>
-              </>
+              </div>
+            ) : (
+              <p className="text-gray-500 italic">No items in this order</p>
             )}
             <p><strong>Subtotal:</strong> ${selectedOrder.subtotal?.toFixed(2) || '0.00'}</p>
             <p><strong>Payment Method:</strong> {selectedOrder.payment_method || 'N/A'}</p>

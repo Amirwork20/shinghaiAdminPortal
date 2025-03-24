@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, message, Input, Space } from 'antd';
-import { EyeOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, message, Input, Space, Tooltip } from 'antd';
+import { EyeOutlined, FileExcelOutlined, UndoOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useOrder } from '../../context/OrderContext';
 import * as XLSX from 'xlsx';
 
 const { Search } = Input;
+const { confirm } = Modal;
 
 const DeliveredOrderList = () => {
-  const { deliveredOrders = [], isLoading, fetchDeliveredOrders, getOrderDetails } = useOrder();
+  const { deliveredOrders = [], isLoading, fetchDeliveredOrders, getOrderDetails, revokeDeliveredOrder } = useOrder();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,14 +26,20 @@ const DeliveredOrderList = () => {
 
   const showModal = async (orderId) => {
     try {
+      console.log('Fetching delivered order details for ID:', orderId);
       const orderDetails = await getOrderDetails(orderId);
-      if (orderDetails && orderDetails.data) {
-        setSelectedOrder(orderDetails.data);
-      } else {
+      console.log('Delivered order details response:', orderDetails);
+      
+      if (orderDetails) {
         setSelectedOrder(orderDetails);
+        console.log('Selected delivered order set:', orderDetails);
+      } else {
+        console.error('Delivered order details returned null or undefined');
+        message.error('Failed to load order details data');
       }
       setIsModalVisible(true);
     } catch (error) {
+      console.error('Error fetching delivered order details:', error);
       message.error('Failed to fetch order details');
     }
   };
@@ -86,6 +93,60 @@ const DeliveredOrderList = () => {
     XLSX.writeFile(workbook, 'DeliveredOrders.xlsx');
   };
 
+  const handleRevokeOrder = async (id, orderInfo) => {
+    const customerName = orderInfo.customer_details ? 
+      `${orderInfo.customer_details.first_name} ${orderInfo.customer_details.last_name}` : 
+      'Unknown';
+    
+    let revokeModal;  
+    
+    revokeModal = confirm({
+      title: 'Revoke Delivery Status',
+      icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+      content: (
+        <div>
+          <p>Are you sure you want to move this order back to confirmed status?</p>
+          <p><strong>Order ID:</strong> {id}</p>
+          <p><strong>Customer:</strong> {customerName}</p>
+          <p><strong>Total:</strong> ${orderInfo.subtotal?.toFixed(2) || '0.00'}</p>
+        </div>
+      ),
+      okText: 'Yes, Revoke',
+      okType: 'warning',
+      cancelText: 'No',
+      okButtonProps: {
+        loading: false,
+      },
+      onOk: async () => {
+        // Set button to loading state
+        revokeModal.update({
+          okButtonProps: {
+            loading: true,
+          }
+        });
+        
+        try {
+          await revokeDeliveredOrder(id);
+          message.success('Order successfully moved back to confirmed status');
+          await fetchDeliveredOrders();
+          return Promise.resolve();
+        } catch (error) {
+          console.error('Error revoking order delivery:', error);
+          message.error(`Failed to revoke delivery: ${error.message || 'Unknown error'}`);
+          
+          // Reset loading state on error
+          revokeModal.update({
+            okButtonProps: {
+              loading: false,
+            }
+          });
+          
+          return Promise.reject();
+        }
+      },
+    });
+  };
+
   const columns = [
     {
       title: 'Order ID',
@@ -130,12 +191,23 @@ const DeliveredOrderList = () => {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 100,
+      width: 150,
       render: (_, record) => (
-        <Button 
-          icon={<EyeOutlined />} 
-          onClick={() => showModal(record._id)}
-        />
+        <Space>
+          <Tooltip title="View Order Details">
+            <Button 
+              icon={<EyeOutlined />} 
+              onClick={() => showModal(record._id)}
+            />
+          </Tooltip>
+          <Tooltip title="Move Back to Confirmed">
+            <Button 
+              icon={<UndoOutlined />}
+              onClick={() => handleRevokeOrder(record._id, record)}
+              type="warning"
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -188,16 +260,66 @@ const DeliveredOrderList = () => {
       >
         {selectedOrder && (
           <div className="space-y-4">
-            <p><strong>Order ID:</strong> {selectedOrder._id || 'N/A'}</p>
-            <p><strong>Customer Name:</strong> {selectedOrder.full_name || 'N/A'}</p>
-            <p><strong>Quantity:</strong> {selectedOrder.quantity || 'N/A'}</p>
-            <p><strong>Product ID:</strong> {selectedOrder.product_id || 'N/A'}</p>
-            <p><strong>Date:</strong> {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : 'N/A'}</p>
-            <p><strong>Mobile Number:</strong> {selectedOrder.mobilenumber || 'N/A'}</p>
-            <p><strong>Emirates:</strong> {selectedOrder.selected_emirates || 'N/A'}</p>
-            <p><strong>Delivery Address:</strong> {selectedOrder.delivery_address || 'N/A'}</p>
-            <p><strong>Selected Attributes:</strong> {selectedOrder.selected_attributes || 'N/A'}</p>
-            <p><strong>User ID:</strong> {selectedOrder.web_user_id || 'N/A'}</p>
+            <div className="border-b pb-4">
+              <h3 className="text-lg font-semibold mb-2">Order Information</h3>
+              <p><strong>Order ID:</strong> {selectedOrder._id || 'N/A'}</p>
+              <p><strong>Date:</strong> {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : 'N/A'}</p>
+              <p><strong>Status:</strong> {selectedOrder.status || 'N/A'}</p>
+              <p><strong>Payment Method:</strong> {selectedOrder.payment_method || 'N/A'}</p>
+              <p><strong>Subtotal:</strong> ${selectedOrder.subtotal?.toFixed(2) || '0.00'}</p>
+            </div>
+
+            <div className="border-b pb-4">
+              <h3 className="text-lg font-semibold mb-2">Customer Details</h3>
+              <p><strong>Name:</strong> {`${selectedOrder.customer_details?.first_name || ''} ${selectedOrder.customer_details?.last_name || ''}`}</p>
+              <p><strong>Email:</strong> {selectedOrder.customer_details?.email || 'N/A'}</p>
+              <p><strong>Phone:</strong> {selectedOrder.customer_details?.phone || 'N/A'}</p>
+              <p><strong>Address:</strong> {selectedOrder.customer_details?.address || 'N/A'}</p>
+              <p><strong>Apartment:</strong> {selectedOrder.customer_details?.apartment || 'N/A'}</p>
+              <p><strong>City:</strong> {selectedOrder.customer_details?.city || 'N/A'}</p>
+              <p><strong>Delivery City:</strong> {selectedOrder.customer_details?.delivery_city || 'N/A'}</p>
+            </div>
+
+            {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Order Items</h3>
+                <div className="space-y-2">
+                  {selectedOrder.order_items.map((item, index) => (
+                    <div key={index} className="border p-3 rounded">
+                      <p><strong>Product:</strong> {item.product_id?.title || 'N/A'}</p>
+                      {item.attributes ? (
+                        <div>
+                          <strong>Attributes:</strong>
+                          {Object.entries(item.attributes).map(([key, value], attrIndex) => (
+                            <p key={attrIndex} className="ml-3">- {key}: {value}</p>
+                          ))}
+                        </div>
+                      ) : (
+                        item.size && <p><strong>Size:</strong> {item.size}</p>
+                      )}
+                      <p><strong>Quantity:</strong> {item.quantity || 0}</p>
+                      <p><strong>Price:</strong> ${item.price?.toFixed(2) || '0.00'}</p>
+                      {item.product_id?.image_url && (
+                        <img 
+                          src={item.product_id.image_url} 
+                          alt={item.product_id.title}
+                          className="w-20 h-20 object-cover mt-2"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 italic">No items in this order</p>
+            )}
+
+            {selectedOrder.order_notes && (
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold mb-2">Order Notes</h3>
+                <p>{selectedOrder.order_notes}</p>
+              </div>
+            )}
           </div>
         )}
       </Modal>

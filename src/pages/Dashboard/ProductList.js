@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Button, Space, message, Modal, Image, Input } from 'antd';
-import { EditOutlined, EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Table, Button, Space, message, Modal, Image, Input, Select, Tag, Divider } from 'antd';
+import { EditOutlined, EyeInvisibleOutlined, EyeOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import { useProduct } from '../../context/ProductContext';
 import { Link, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 const { Search } = Input;
+const { Option } = Select;
 
 const ProductList = () => {
   const { 
@@ -15,11 +16,18 @@ const ProductList = () => {
     selectedProduct, 
     setSelectedProduct, 
     isLoading, 
-    fetchProducts 
+    fetchProducts,
+    searchProducts,
+    searchResults,
+    clearSearch
   } = useProduct();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchColumn, setSearchColumn] = useState('all');
+  const [isSearching, setIsSearching] = useState(false);
   const location = useLocation();
+
+  const debounceTimerRef = useRef(null);
 
   useEffect(() => {
     fetchProducts();
@@ -61,10 +69,220 @@ const ProductList = () => {
     XLSX.writeFile(workbook, 'Products.xlsx');
   };
 
-  const filteredProducts = products.filter(product => 
-    (product?.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-     product?._id?.toString().includes(searchQuery)) ?? false
-  );
+  const searchableColumns = [
+    { key: 'all', title: 'All Columns' },
+    { key: 'sku', title: 'SKU' },
+    { key: 'title', title: 'Title' },
+    { key: 'name', title: 'Name' },
+    { key: 'category', title: 'Category' },
+    { key: 'fabric', title: 'Fabric' },
+    { key: 'season', title: 'Season' },
+    { key: 'actual_price', title: 'Actual Price' },
+    { key: 'price', title: 'Selling Price' },
+    { key: 'off_percentage_value', title: 'Discount %' },
+    { key: 'quantity', title: 'Stock' },
+    { key: 'sold', title: 'Sold' },
+    { key: 'max_quantity_per_user', title: 'Max Qty/User' },
+    { key: 'delivery_charges', title: 'Delivery Charges' },
+    { key: 'cost', title: 'Cost' },
+    { key: 'status', title: 'Status' }
+  ];
+
+  const filterProductsBySearch = useCallback((products, query, column) => {
+    if (!query) return products;
+    
+    return products.filter(product => {
+      const searchTerm = query.toLowerCase();
+      
+      // Search in all columns
+      if (column === 'all') {
+        // For searching across all columns
+        return (
+          product?.title?.toLowerCase().includes(searchTerm) || 
+          product?._id?.toString().includes(searchTerm) ||
+          product?.sku?.toLowerCase().includes(searchTerm) ||
+          String(product?.price || '').includes(searchTerm) ||
+          String(product?.actual_price || '').includes(searchTerm) ||
+          String(product?.quantity || '').includes(searchTerm) ||
+          String(product?.sold || '').includes(searchTerm) ||
+          String(product?.max_quantity_per_user || '').includes(searchTerm) ||
+          String(product?.delivery_charges || '').includes(searchTerm) ||
+          String(product?.cost || '').includes(searchTerm) ||
+          String(product?.off_percentage_value || '').includes(searchTerm) ||
+          (product?.season || '').toLowerCase().includes(searchTerm) ||
+          (product?.fabric_id?.fabric_name || '').toLowerCase().includes(searchTerm) ||
+          // Category search in all mode - restore category_hierarchy fields
+          (product?.category_hierarchy?.main_category?.category_name || '').toLowerCase().includes(searchTerm) ||
+          (product?.category_hierarchy?.sub_category?.category_name || '').toLowerCase().includes(searchTerm) ||
+          (product?.category_hierarchy?.category?.category_name || '').toLowerCase().includes(searchTerm) ||
+          (product?.category_id?.category_name || '').toLowerCase().includes(searchTerm) ||
+          (product?.category_id?.sub_category?.category_name || '').toLowerCase().includes(searchTerm) ||
+          (product?.category_id?.sub_category?.main_category_id?.category_name || '').toLowerCase().includes(searchTerm) ||
+          // Status search
+          (product?.is_active ? 'active' : 'inactive').includes(searchTerm) ||
+          (product?.is_deal ? 'deal' : '').includes(searchTerm) ||
+          (product?.is_hot_deal ? 'hot deal' : '').includes(searchTerm) ||
+          (product?.vat_included ? 'vat included' : '').includes(searchTerm)
+        );
+      }
+      
+      // Search in specific column
+      switch (column) {
+        case 'sku':
+          return (product?.sku || '').toLowerCase().includes(searchTerm);
+        case 'title':
+          return (product?.title || '').toLowerCase().includes(searchTerm);
+        case 'name':  // Added case for Name
+          return (product?.name || '').toLowerCase().includes(searchTerm) || 
+                 (product?.title || '').toLowerCase().includes(searchTerm);
+        case 'category':
+          // Full category search - restore category_hierarchy references
+          const mainCategory = (
+            product.category_hierarchy?.main_category?.category_name || 
+            product.category_id?.sub_category?.main_category_id?.category_name || 
+            ''
+          ).toLowerCase();
+          const subCategory = (
+            product.category_hierarchy?.sub_category?.category_name || 
+            product.category_id?.sub_category?.category_name || 
+            ''
+          ).toLowerCase();
+          const category = (
+            product.category_hierarchy?.category?.category_name || 
+            product.category_id?.category_name || 
+            ''
+          ).toLowerCase();
+          return mainCategory.includes(searchTerm) || subCategory.includes(searchTerm) || category.includes(searchTerm);
+        case 'fabric':
+          return (product?.fabric_id?.fabric_name || '').toLowerCase().includes(searchTerm);
+        case 'season':
+          return (product?.season || '').toLowerCase().includes(searchTerm);
+        case 'price':
+          return String(product?.price || '').includes(searchTerm);
+        case 'actual_price':
+          return String(product?.actual_price || '').includes(searchTerm);
+        case 'off_percentage_value':
+          // Check both the direct value and calculated value
+          if (product?.off_percentage_value) {
+            return String(product.off_percentage_value).includes(searchTerm);
+          } else if (product?.actual_price && product?.price && product?.actual_price > product?.price) {
+            const discount = ((product.actual_price - product.price) / product.actual_price) * 100;
+            return String(discount.toFixed(2)).includes(searchTerm);
+          }
+          return false;
+        case 'quantity':
+          return String(product?.quantity || '').includes(searchTerm);
+        case 'sold':
+          return String(product?.sold || '').includes(searchTerm);
+        case 'max_quantity_per_user':
+          return String(product?.max_quantity_per_user || '').includes(searchTerm);
+        case 'delivery_charges':
+          return String(product?.delivery_charges || '').includes(searchTerm);
+        case 'cost':
+          return String(product?.cost || '').includes(searchTerm);
+        case 'status':
+          const statusTerms = searchTerm.toLowerCase();
+          const isActive = product?.is_active ? 'active' : 'inactive';
+          const isDeal = product?.is_deal ? 'deal' : '';
+          const isHotDeal = product?.is_hot_deal ? 'hot deal' : '';
+          const hasVat = product?.vat_included ? 'vat included' : '';
+          
+          return isActive.includes(statusTerms) || 
+                 isDeal.includes(statusTerms) || 
+                 isHotDeal.includes(statusTerms) || 
+                 hasVat.includes(statusTerms);
+        default:
+          return false;
+      }
+    });
+  }, []);
+
+  // Get the appropriate placeholder text
+  const getSearchPlaceholder = useCallback(() => {
+    const selectedColumn = searchableColumns.find(col => col.key === searchColumn);
+    if (searchColumn === 'all') {
+      return 'Search in all columns';
+    } else if (searchColumn === 'price' || searchColumn === 'actual_price' || 
+               searchColumn === 'quantity' || searchColumn === 'sold') {
+      return `Search by ${selectedColumn.title} value`;
+    } else {
+      return `Search by ${selectedColumn.title}`;
+    }
+  }, [searchColumn, searchableColumns]);
+
+  // Handle search
+  const handleSearch = useCallback(async (value, column) => {
+    if (!value.trim()) {
+      clearSearch();
+      return;
+    }
+    
+    // Don't search again if already searching with same parameters
+    if (isSearching) return;
+    
+    setIsSearching(true);
+    try {
+      // Show searching message
+      message.loading({ content: 'Searching products...', key: 'searchMessage', duration: 0 });
+      
+      const results = await searchProducts(value.trim(), column);
+      
+      // Show success message with result count
+      message.success({ 
+        content: `Found ${results.length} products matching your search`, 
+        key: 'searchMessage', 
+        duration: 2 
+      });
+    } catch (error) {
+      console.error('Search error:', error);
+      message.error({ 
+        content: 'Failed to search products: ' + (error.message || 'Unknown error'), 
+        key: 'searchMessage',
+        duration: 3
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchProducts, clearSearch, isSearching, message]);
+
+  // Handle search input changes with debounce
+  const handleSearchInputChange = useCallback((e) => {
+    const newValue = e.target.value;
+    setSearchQuery(newValue);
+    
+    // Clear search results if input is cleared
+    if (!newValue.trim()) {
+      clearSearch();
+      return;
+    }
+    
+    // Clear any existing timeout
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Only set a timeout for search if we have enough characters
+    if (newValue.length > 2) { // Only search when at least 3 characters
+      debounceTimerRef.current = setTimeout(() => {
+        // Don't auto-search, let the user press the button
+        // This helps reduce unnecessary API calls
+        // handleSearch(newValue, searchColumn);
+      }, 800); // 800ms debounce
+    }
+  }, [searchColumn, clearSearch]);
+
+  // This will run only once on component mount and cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearSearch();
+    };
+  }, [clearSearch]);
+
+  // Get the display products (either search results or all products)
+  const displayProducts = searchResults !== null ? searchResults : products;
+  const isSearchActive = searchResults !== null;
+
+  const filteredProducts = filterProductsBySearch(displayProducts, searchQuery, searchColumn);
 
   const columns = [
     {
@@ -218,18 +436,83 @@ const ProductList = () => {
     setSelectedProduct(null);
   };
 
+  // Show search status
+  const renderSearchResults = () => {
+    if (!isSearchActive) return null;
+    
+    return (
+      <div style={{ marginBottom: '16px' }}>
+        <Space>
+          <Tag color="blue" icon={<SearchOutlined />}>
+            Search Results: {filteredProducts.length} product(s) found
+          </Tag>
+          <Button 
+            size="small" 
+            icon={<ClearOutlined />} 
+            onClick={() => {
+              setSearchQuery('');
+              clearSearch();
+            }}
+          >
+            Clear Search
+          </Button>
+        </Space>
+      </div>
+    );
+  };
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-4">Product List</h2>
-      <div className="flex justify-between items-center mb-4">
-        <Search 
-          placeholder="Search Products"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ marginBottom: 16, width: 300 }}
-        />
-        <Button type="primary" onClick={exportToExcel}>Export Products</Button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h1>Product List</h1>
+        <Space>
+          <Button onClick={exportToExcel}>
+            Export to Excel
+          </Button>
+          <Link to="/dashboard/add-product">
+            <Button type="primary">
+              Add Product
+            </Button>
+          </Link>
+        </Space>
       </div>
+      
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', marginBottom: '16px' }}>
+          <Select
+            value={searchColumn}
+            onChange={(value) => {
+              setSearchColumn(value);
+              // Clear search results when column changes
+              clearSearch();
+            }}
+            style={{ width: 180, marginRight: '8px' }}
+            placeholder="Select column"
+            disabled={isSearching}
+            optionLabelProp="label"
+            dropdownMatchSelectWidth={false}
+          >
+            {searchableColumns.map(column => (
+              <Option key={column.key} value={column.key} label={column.title}>
+                {column.title}
+              </Option>
+            ))}
+          </Select>
+          <Search 
+            placeholder={getSearchPlaceholder()}
+            value={searchQuery}
+            onChange={handleSearchInputChange}
+            onSearch={(value) => handleSearch(value, searchColumn)}
+            loading={isSearching}
+            style={{ width: '100%' }}
+            allowClear
+            enterButton
+          />
+        </div>
+        
+        {renderSearchResults()}
+      </div>
+      
       <div style={{ overflowX: 'auto' }}>
         <Table 
           columns={columns} 

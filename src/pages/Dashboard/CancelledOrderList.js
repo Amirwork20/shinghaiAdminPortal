@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, message, Input, Space } from 'antd';
+import { Table, Button, Modal, message, Input, Space, Tooltip } from 'antd';
 import { EyeOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { useOrder } from '../../context/OrderContext';
 import * as XLSX from 'xlsx';
@@ -24,10 +24,20 @@ const CancelledOrderList = () => {
 
   const showModal = async (orderId) => {
     try {
+      console.log('Fetching cancelled order details for ID:', orderId);
       const orderDetails = await getOrderDetails(orderId);
-      setSelectedOrder(orderDetails);
+      console.log('Cancelled order details response:', orderDetails);
+      
+      if (orderDetails) {
+        setSelectedOrder(orderDetails);
+        console.log('Selected cancelled order set:', orderDetails);
+      } else {
+        console.error('Cancelled order details returned null or undefined');
+        message.error('Failed to load order details data');
+      }
       setIsModalVisible(true);
     } catch (error) {
+      console.error('Error fetching cancelled order details:', error);
       message.error('Failed to fetch order details');
     }
   };
@@ -115,7 +125,9 @@ const CancelledOrderList = () => {
       fixed: 'right',
       width: 100,
       render: (_, record) => (
-        <Button icon={<EyeOutlined />} onClick={() => showModal(record._id)} />
+        <Tooltip title="View Order Details">
+          <Button icon={<EyeOutlined />} onClick={() => showModal(record._id)} />
+        </Tooltip>
       ),
     },
   ];

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, message, Select, Input } from 'antd';
-import { EyeOutlined, CarOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, message, Select, Input, Tooltip } from 'antd';
+import { EyeOutlined, CarOutlined, FileExcelOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useOrder } from '../../context/OrderContext';
 import { useDeliveryType } from '../../context/deliveryTypeContext';
 import * as XLSX from 'xlsx';
 
 const { Option } = Select;
 const { Search } = Input;
+const { confirm } = Modal;
 
 const ConfirmOrderList = () => {
   const { confirmedOrders = [], isLoading, fetchConfirmedOrders, getOrderDetails, deliverOrder, assignDeliveryType } = useOrder();
@@ -22,14 +23,20 @@ const ConfirmOrderList = () => {
 
   const showModal = async (orderId) => {
     try {
+      console.log('Fetching confirmed order details for ID:', orderId);
       const orderDetails = await getOrderDetails(orderId);
-      if (orderDetails && orderDetails.data) {
-        setSelectedOrder(orderDetails.data);
-      } else {
+      console.log('Confirmed order details response:', orderDetails);
+      
+      if (orderDetails) {
         setSelectedOrder(orderDetails);
+        console.log('Selected confirmed order set:', orderDetails);
+      } else {
+        console.error('Confirmed order details returned null or undefined');
+        message.error('Failed to load order details data');
       }
       setIsModalVisible(true);
     } catch (error) {
+      console.error('Error fetching confirmed order details:', error);
       message.error('Failed to fetch order details');
     }
   };
@@ -42,14 +49,58 @@ const ConfirmOrderList = () => {
     setIsModalVisible(false);
   };
 
-  const handleDeliverOrder = async (id) => {
-    try {
-      await deliverOrder(id);
-      message.success('Order marked as delivered successfully');
-      fetchConfirmedOrders();
-    } catch (error) {
-      message.error('Failed to mark order as delivered');
-    }
+  const handleDeliverOrder = async (id, orderInfo) => {
+    const customerName = orderInfo.customer_details ? 
+      `${orderInfo.customer_details.first_name} ${orderInfo.customer_details.last_name}` : 
+      'Unknown';
+    
+    let deliverModal;  
+    
+    deliverModal = confirm({
+      title: 'Mark Order as Delivered',
+      icon: <ExclamationCircleOutlined style={{ color: '#52c41a' }} />,
+      content: (
+        <div>
+          <p>Are you sure you want to mark this order as delivered?</p>
+          <p><strong>Order ID:</strong> {id}</p>
+          <p><strong>Customer:</strong> {customerName}</p>
+          <p><strong>Total:</strong> ${orderInfo.subtotal?.toFixed(2) || '0.00'}</p>
+        </div>
+      ),
+      okText: 'Yes, Mark as Delivered',
+      okType: 'primary',
+      cancelText: 'No',
+      okButtonProps: {
+        loading: false,
+      },
+      onOk: async () => {
+        // Set button to loading state
+        deliverModal.update({
+          okButtonProps: {
+            loading: true,
+          }
+        });
+        
+        try {
+          await deliverOrder(id);
+          message.success('Order marked as delivered successfully');
+          await fetchConfirmedOrders();
+          return Promise.resolve();
+        } catch (error) {
+          console.error('Error marking order as delivered:', error);
+          message.error(`Failed to mark order as delivered: ${error.message || 'Unknown error'}`);
+          
+          // Reset loading state on error
+          deliverModal.update({
+            okButtonProps: {
+              loading: false,
+            }
+          });
+          
+          return Promise.reject();
+        }
+      },
+    });
   };
 
   const handleAssignDeliveryType = async (orderId, deliveryTypeName) => {
@@ -141,18 +192,22 @@ const ConfirmOrderList = () => {
       width: 200,
       render: (_, record) => (
         <Space>
-          <Button
-            icon={<EyeOutlined />}
-            onClick={() => showModal(record._id)}
-          >
-            View
-          </Button>
-          <Button
-            icon={<CarOutlined />}
-            onClick={() => handleDeliverOrder(record._id)}
-          >
-            Deliver
-          </Button>
+          <Tooltip title="View Order Details">
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => showModal(record._id)}
+            >
+              View
+            </Button>
+          </Tooltip>
+          <Tooltip title="Mark as Delivered">
+            <Button
+              icon={<CarOutlined />}
+              onClick={() => handleDeliverOrder(record._id, record)}
+            >
+              Deliver
+            </Button>
+          </Tooltip>
         </Space>
       ),
     },

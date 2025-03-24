@@ -45,6 +45,8 @@ export const ProductProvider = ({ children }) => {
   const [nonActiveProducts, setNonActiveProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [searchResults, setSearchResults] = useState(null);
+  const [lastSearchParams, setLastSearchParams] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = Cookies.get('token');
@@ -55,14 +57,43 @@ export const ProductProvider = ({ children }) => {
     setIsLoading(true);
     try {
       const headers = getAuthHeaders();
+      
+      // Add retries and timeout to make the request more resilient
+      const fetchWithRetry = async (url, options, retries = 3) => {
+        try {
+          const response = await axios.get(url, {
+            ...options,
+            timeout: 10000 // 10 second timeout
+          });
+          return response;
+        } catch (error) {
+          if (retries > 0) {
+            console.log(`Retrying fetch for ${url}, ${retries} retries left`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            return fetchWithRetry(url, options, retries - 1);
+          }
+          throw error;
+        }
+      };
+      
       const [activeResponse, nonActiveResponse] = await Promise.all([
-        axios.get(`${API_URL}/products/active`, { headers }),
-        axios.get(`${API_URL}/products/deactivated/all`, { headers })
+        fetchWithRetry(`${API_URL}/products/active`, { headers }),
+        fetchWithRetry(`${API_URL}/products/deactivated/all`, { headers })
       ]);
-      setProducts(activeResponse.data);
-      setNonActiveProducts(nonActiveResponse.data);
+      
+      if (activeResponse.data) {
+        setProducts(activeResponse.data);
+      }
+      
+      if (nonActiveResponse.data) {
+        setNonActiveProducts(nonActiveResponse.data);
+      }
     } catch (error) {
       console.error('Error fetching products:', error);
+      // Error message for debugging
+      const errorMessage = error.response?.data?.message || error.message || String(error);
+      console.error('Error details:', errorMessage);
+      
       // Use fallback data if API fails
       setProducts(fallbackProducts);
       setNonActiveProducts([]);
@@ -370,6 +401,118 @@ export const ProductProvider = ({ children }) => {
     }
   };
 
+  const searchProducts = async (query, column = 'all') => {
+    // Check if this is the same search as the last one
+    const searchParamsString = `${query}-${column}`;
+    
+    if (searchParamsString === lastSearchParams) {
+      console.log('Skipping duplicate search with same parameters');
+      return searchResults || [];
+    }
+    
+    setIsLoading(true);
+    try {
+      const headers = getAuthHeaders();
+      // Base URL for products search
+      let url = `${API_URL}/products/active`;
+      
+      // If there's a search query, add it as a query parameter
+      if (query) {
+        url = `${url}?search=${encodeURIComponent(query)}&column=${encodeURIComponent(column)}`;
+      }
+      
+      console.log(`Searching products with query: ${query}, column: ${column}`);
+      
+      // For some columns, we want to do client-side searching instead
+      const clientSideSearchColumns = ['off_percentage_value', 'status'];
+      
+      if (clientSideSearchColumns.includes(column)) {
+        // For these special columns, get all products and filter client-side
+        console.log(`Using client-side filtering for column: ${column}`);
+        const response = await axios.get(`${API_URL}/products/active`, { headers });
+        const allProducts = response.data;
+        
+        // Filter the products client-side
+        let filtered = allProducts;
+        
+        // Apply client-side filtering based on column
+        switch (column) {
+          case 'off_percentage_value':
+            // Handle percent search (allow searching for percent values)
+            const searchNum = parseFloat(query.replace(/%/g, ''));
+            if (!isNaN(searchNum)) {
+              filtered = allProducts.filter(product => {
+                if (product.off_percentage_value !== undefined && product.off_percentage_value !== null) {
+                  return Math.abs(product.off_percentage_value - searchNum) < 0.01;
+                }
+                
+                if (product.actual_price && product.price && product.actual_price > product.price) {
+                  const discount = ((product.actual_price - product.price) / product.actual_price) * 100;
+                  return Math.abs(discount - searchNum) < 0.01;
+                }
+                
+                return false;
+              });
+            } else {
+              filtered = [];
+            }
+            break;
+            
+          case 'status':
+            // Status search (active, inactive, deal, hot deal, vat)
+            const lowerSearch = query.toLowerCase();
+            filtered = allProducts.filter(product => {
+              if (lowerSearch.includes('active') && product.is_active) return true;
+              if (lowerSearch.includes('inactive') && !product.is_active) return true;
+              if (lowerSearch.includes('hot deal') && product.is_hot_deal) return true;
+              if (lowerSearch.includes('deal') && product.is_deal) return true;
+              if (lowerSearch.includes('vat') && product.vat_included) return true;
+              return false;
+            });
+            break;
+            
+          default:
+            // No special filtering needed
+            break;
+        }
+        
+        setSearchResults(filtered);
+        setLastSearchParams(searchParamsString);
+        setIsLoading(false);
+        return filtered;
+      } else {
+        // Use server-side search for other columns
+        const response = await axios.get(url, { headers });
+        
+        // Store the search results separately from the main products list
+        setSearchResults(response.data);
+        // Save the search parameters to avoid duplicate searches
+        setLastSearchParams(searchParamsString);
+        setIsLoading(false);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Error searching products:', error.response?.data || error.message || error);
+      // Don't change search results on error, keep previous results
+      if (error.response?.status === 400) {
+        // If it's a 400 error, it's likely a validation error, so we should clear the results
+        setSearchResults([]);
+        setIsLoading(false);
+        return [];
+      } else {
+        // For other errors, keep the previous results
+        console.log('Keeping previous search results due to API error');
+        setIsLoading(false);
+        return searchResults || [];
+      }
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchResults(null);
+    setLastSearchParams(null);
+  };
+
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
@@ -389,7 +532,10 @@ export const ProductProvider = ({ children }) => {
     uploadImage,
     uploadVideo,
     deleteImage,
-    deleteVideo
+    deleteVideo,
+    searchProducts,
+    searchResults,
+    clearSearch
   };
 
   return (
