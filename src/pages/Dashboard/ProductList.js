@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Table, Button, Space, message, Modal, Image, Input, Select, Tag, Divider } from 'antd';
+import { Table, Button, Space, message, Modal, Image, Input, Select, Tag, Divider, Tooltip } from 'antd';
 import { EditOutlined, EyeInvisibleOutlined, EyeOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import { useProduct } from '../../context/ProductContext';
 import { Link, useLocation } from 'react-router-dom';
@@ -422,11 +422,23 @@ const ProductList = () => {
       width: 150,
       render: (_, record) => (
         <Space size="middle">
-          <Link to={`/dashboard/edit-product/${record._id}`}>
-            <Button icon={<EditOutlined />} />
-          </Link>
-          <Button icon={<EyeInvisibleOutlined />} onClick={() => handleDeactivate(record._id)} />
-          <Button icon={<EyeOutlined />} onClick={() => handleViewDetails(record._id)} />
+          <Tooltip title="Edit Product">
+            <Link to={`/dashboard/edit-product/${record._id}`}>
+              <Button icon={<EditOutlined />} />
+            </Link>
+          </Tooltip>
+          <Tooltip title="Deactivate Product">
+            <Button 
+              icon={<EyeInvisibleOutlined />} 
+              onClick={() => handleDeactivate(record._id)}
+            />
+          </Tooltip>
+          <Tooltip title="View Details">
+            <Button 
+              icon={<EyeOutlined />} 
+              onClick={() => handleViewDetails(record._id)}
+            />
+          </Tooltip>
         </Space>
       ),
     },
