@@ -28,6 +28,7 @@ import { Header } from './pages/Dashboard/Header';
 import { NavMenuManager } from './pages/Dashboard/NavMenuManager';
 import Fabrics from './pages/Dashboard/Fabrics';
 import LandingImages from './pages/Dashboard/LandingImages';
+import SizeGuideList from './pages/Dashboard/SizeGuideList';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -72,6 +73,7 @@ function AppContent() {
         <Route path="sub-categories" element={<SubCategoryList />} />
         <Route path="fabrics" element={<Fabrics />} />
         <Route path="landing-images" element={<LandingImages />} />
+        <Route path="size-guides" element={<SizeGuideList />} />
       </Route>
 
       <Route path="*" element={<h1 className="text-2xl font-bold text-center mt-10">404: Page Not Found</h1>} />

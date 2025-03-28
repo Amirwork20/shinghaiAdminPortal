@@ -18,6 +18,7 @@ import {
   BranchesOutlined,
   // FabricOutlined,
   PictureOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 
 const DashboardLayout = () => {
@@ -92,6 +93,7 @@ const DashboardLayout = () => {
     { to: "/dashboard/sub-categories", icon: <BranchesOutlined className="mr-3 text-green-600" />, text: "Sub Categories" },
     { to: "/dashboard/categories", icon: <AppstoreAddOutlined className="mr-3 text-green-600" />, text: "Sub Sub Categories" },
     { to: "/dashboard/fabrics", icon: <TagsOutlined className="mr-3 text-green-600" />, text: "Fabrics" },
+    { to: "/dashboard/size-guides", icon: <FileTextOutlined className="mr-3 text-green-600" />, text: "Size Guides" },
     {
       to: "/dashboard/landing-images",
       icon: <PictureOutlined className="mr-3 text-green-600" />,

@@ -129,10 +129,27 @@ export const ProductProvider = ({ children }) => {
   const updateProduct = async (id, productData) => {
     try {
       const headers = getAuthHeaders();
-      const response = await axios.put(`${API_URL}/products/${id}`, productData, { headers });
+      
+      // Ensure size_guide_id is properly formatted
+      const formattedProductData = {
+        ...productData,
+        size_guide_id: productData.size_guide_id || null
+      };
+      
+      // Log the productData for debugging
+      console.log('Updating product with data:', {
+        id,
+        size_guide_id: formattedProductData.size_guide_id,
+        fabric_id: formattedProductData.fabric_id
+      });
+      
+      const response = await axios.put(`${API_URL}/products/${id}`, formattedProductData, { headers });
+      
+      // Update the products list with the new data
       setProducts(prevProducts => prevProducts.map(product => 
         product._id === id ? response.data : product
       ));
+      
       return response.data;
     } catch (error) {
       console.error('Error updating product:', error);

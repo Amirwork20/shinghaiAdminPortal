@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMainCategory } from '../../context/MainCategoryContext';
 import { useSubCategory } from '../../context/SubCategoryContext';
 import { useFabric } from '../../context/FabricContext';
+import { useSizeGuide } from '../../context/SizeGuideContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -22,6 +23,7 @@ const AddProduct = () => {
   const { mainCategories, fetchMainCategories } = useMainCategory();
   const { subCategories, fetchSubCategories } = useSubCategory();
   const { fabrics, fetchFabrics } = useFabric();
+  const { sizeGuides, fetchSizeGuides } = useSizeGuide();
   const [loading, setLoading] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState(null);
   const [tabImageUrls, setTabImageUrls] = useState([]);
@@ -44,7 +46,8 @@ const AddProduct = () => {
           fetchMainCategories(),
           fetchCategories(),
           fetchSubCategories(),
-          fetchFabrics()
+          fetchFabrics(),
+          fetchSizeGuides()
         ]);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -54,7 +57,7 @@ const AddProduct = () => {
     };
 
     loadData();
-  }, [fetchMainCategories, fetchCategories, fetchSubCategories, fetchFabrics]);
+  }, [fetchMainCategories, fetchCategories, fetchSubCategories, fetchFabrics, fetchSizeGuides]);
 
   const handleSubCategoryChange = (subCategoryId) => {
     setSelectedSubCategory(subCategoryId);
@@ -115,6 +118,7 @@ const AddProduct = () => {
       ...restValues,
       season: values.season || 'All Season',
       fabric_id: values.fabric_id,
+      size_guide_id: values.size_guide_id,
       actual_price: parseFloat(values.actual_price),
       off_percentage_value: parseFloat(values.off_percentage_value),
       price: parseFloat(values.price),
@@ -308,6 +312,17 @@ const AddProduct = () => {
                     .map(fabric => (
                       <Option key={fabric._id} value={fabric._id}>
                         {fabric.fabric_name}
+                      </Option>
+                    ))}
+                </Select>
+              </Form.Item>
+              <Form.Item name="size_guide_id" label="Size Guide">
+                <Select placeholder="Select size guide" allowClear>
+                  {sizeGuides
+                    .filter(guide => guide.is_active)
+                    .map(guide => (
+                      <Option key={guide._id} value={guide._id}>
+                        {guide.name}
                       </Option>
                     ))}
                 </Select>

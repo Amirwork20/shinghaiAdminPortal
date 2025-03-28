@@ -13,6 +13,7 @@ import { DeliveryTypeProvider } from './deliveryTypeContext';
 import { NavMenuProvider } from './NavMenuContext';
 import { FabricProvider } from './FabricContext';
 import { LandingImagesProvider } from './LandingImagesContext';
+import { SizeGuideProvider } from './SizeGuideContext';
 
 export const GlobalProvider = ({ children }) => {
   return (
@@ -30,8 +31,9 @@ export const GlobalProvider = ({ children }) => {
                         <DashboardProvider>
                           <DeliveryTypeProvider>
                             <FabricProvider>
-                              
+                              <SizeGuideProvider>
                                 {children}
+                              </SizeGuideProvider>
                             </FabricProvider>
                           </DeliveryTypeProvider>
                         </DashboardProvider>

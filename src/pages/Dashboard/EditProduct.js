@@ -9,6 +9,7 @@ import { useAttribute } from '../../context/AttributesContext';
 import { useMainCategory } from '../../context/MainCategoryContext';
 import { useSubCategory } from '../../context/SubCategoryContext';
 import { useFabric } from '../../context/FabricContext';
+import { useSizeGuide } from '../../context/SizeGuideContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -25,6 +26,7 @@ const EditProduct = () => {
   const { attributes } = useAttribute();
   const { brands } = useBrand();
   const { fabrics, fetchFabrics, isLoading: fabricsLoading } = useFabric();
+  const { sizeGuides, fetchSizeGuides, isLoading: sizeGuidesLoading } = useSizeGuide();
   const [loading, setLoading] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState(null);
   const [tabImageUrls, setTabImageUrls] = useState([]);
@@ -46,7 +48,8 @@ const EditProduct = () => {
           fetchMainCategories(),
           fetchSubCategories(),
           fetchCategories(),
-          fetchFabrics()
+          fetchFabrics(),
+          fetchSizeGuides()
         ]);
       } catch (error) {
         console.error('Error fetching categories:', error);
@@ -55,7 +58,7 @@ const EditProduct = () => {
     };
 
     fetchAllCategories();
-  }, [fetchMainCategories, fetchSubCategories, fetchCategories, fetchFabrics]);
+  }, [fetchMainCategories, fetchSubCategories, fetchCategories, fetchFabrics, fetchSizeGuides]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -95,8 +98,12 @@ const EditProduct = () => {
           vat_included: product.vat_included,
           attributes: typeof product.attributes === 'string' ? JSON.parse(product.attributes) : product.attributes,
           fabric_id: product.fabric_id?._id,
+          size_guide_id: product.size_guide_id?._id,
           season: product.season || 'All Season'
         });
+
+        // Log the loaded size guide for debugging
+        console.log('Loaded size guide:', product.size_guide_id);
       } catch (error) {
         console.error('Error fetching product:', error);
         message.error('Failed to fetch product details');
@@ -185,6 +192,7 @@ const EditProduct = () => {
       return null;
     }).filter(url => url !== null);
 
+    // Ensure size_guide_id is included in the formatted data
     return {
       ...values,
       actual_price: parseFloat(values.actual_price),
@@ -202,6 +210,7 @@ const EditProduct = () => {
       vat_included: values.vat_included === undefined ? true : values.vat_included,
       season: values.season || 'All Season',
       fabric_id: values.fabric_id,
+      size_guide_id: values.size_guide_id, // Ensure size guide is included
       care_instructions: values.care_instructions || '',
       disclaimer: values.disclaimer || ''
     };
@@ -395,6 +404,24 @@ const EditProduct = () => {
                     .map(fabric => (
                       <Option key={fabric._id} value={fabric._id}>
                         {fabric.fabric_name}
+                      </Option>
+                    ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item name="size_guide_id" label="Size Guide">
+                <Select 
+                  placeholder="Select size guide" 
+                  allowClear 
+                  loading={sizeGuidesLoading}
+                  optionFilterProp="children"
+                  showSearch
+                >
+                  {sizeGuides
+                    .filter(guide => guide.is_active)
+                    .map(guide => (
+                      <Option key={guide._id} value={guide._id}>
+                        {guide.name}
                       </Option>
                     ))}
                 </Select>
