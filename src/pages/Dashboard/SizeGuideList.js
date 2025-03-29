@@ -31,15 +31,26 @@ const SizeGuideList = () => {
       description: record.description,
       is_active: record.is_active
     });
-    setMeasurements(record.measurements || [{ label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } }]);
+    // Ensure measurements is an array
+    const guideMeasurements = Array.isArray(record.measurements) 
+      ? record.measurements 
+      : [{ label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } }];
+    setMeasurements(guideMeasurements);
     setModalVisible(true);
   };
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      
+      // Validate measurements is an array
+      if (!Array.isArray(measurements)) {
+        message.error('Invalid measurements data');
+        return;
+      }
+      
       // Add measurements to values
-      values.measurements = measurements.filter(m => m.label.trim() !== '');
+      values.measurements = measurements.filter(m => m && m.label && m.label.trim() !== '');
       
       if (editingGuide) {
         await updateSizeGuide(editingGuide._id, values);
@@ -53,7 +64,7 @@ const SizeGuideList = () => {
       fetchSizeGuides(true);
     } catch (error) {
       console.error('Form submission error:', error);
-      message.error('Error saving size guide');
+      message.error('Error saving size guide: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -91,22 +102,52 @@ const SizeGuideList = () => {
   };
 
   const addMeasurementRow = () => {
-    setMeasurements([...measurements, { label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } }]);
+    setMeasurements([...(Array.isArray(measurements) ? measurements : []), { 
+      label: '', 
+      values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } 
+    }]);
   };
 
   const removeMeasurementRow = (index) => {
+    if (!Array.isArray(measurements)) {
+      setMeasurements([{ label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } }]);
+      return;
+    }
+    
+    if (measurements.length <= 1) {
+      return; // Don't remove the last row
+    }
+    
     const newMeasurements = [...measurements];
     newMeasurements.splice(index, 1);
     setMeasurements(newMeasurements);
   };
 
   const handleMeasurementChange = (index, field, value) => {
+    if (!Array.isArray(measurements)) {
+      // Initialize with a default measurement if the array is invalid
+      setMeasurements([{ label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } }]);
+      return;
+    }
+    
     const newMeasurements = [...measurements];
+    
+    // Ensure the measurement at this index exists
+    if (!newMeasurements[index]) {
+      newMeasurements[index] = { label: '', values: { xs: '', s: '', m: '', l: '', xl: '', xxl: '' } };
+    }
+    
+    // Ensure values object exists
+    if (!newMeasurements[index].values) {
+      newMeasurements[index].values = { xs: '', s: '', m: '', l: '', xl: '', xxl: '' };
+    }
+    
     if (field === 'label') {
       newMeasurements[index].label = value;
     } else {
       newMeasurements[index].values[field] = value;
     }
+    
     setMeasurements(newMeasurements);
   };
 
@@ -117,7 +158,7 @@ const SizeGuideList = () => {
       key: 'name',
       render: (text, record) => (
         <span style={{ color: record.is_active ? 'inherit' : '#d9d9d9' }}>
-          {text}
+          {text || 'Unnamed Guide'}
         </span>
       )
     },
@@ -128,7 +169,7 @@ const SizeGuideList = () => {
       ellipsis: true,
       render: (text, record) => (
         <span style={{ color: record.is_active ? 'inherit' : '#d9d9d9' }}>
-          {text}
+          {text || 'No description'}
         </span>
       )
     },
@@ -137,7 +178,7 @@ const SizeGuideList = () => {
       key: 'measurements',
       render: (_, record) => (
         <span>
-          {record.measurements?.length || 0} measurements
+          {Array.isArray(record.measurements) ? record.measurements.length : 0} measurements
         </span>
       )
     },
@@ -192,7 +233,7 @@ const SizeGuideList = () => {
       <Card>
         <Table
           columns={columns}
-          dataSource={sizeGuides}
+          dataSource={Array.isArray(sizeGuides) ? sizeGuides : []}
           rowKey="_id"
           loading={isLoading}
           pagination={{ pageSize: 10 }}
@@ -243,7 +284,7 @@ const SizeGuideList = () => {
               </Button>
             </div>
             
-            {measurements.length > 0 && (
+            {Array.isArray(measurements) && measurements.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200 mb-4">
                   <thead>
@@ -263,14 +304,14 @@ const SizeGuideList = () => {
                       <tr key={index}>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.label}
+                            value={measurement?.label || ''}
                             onChange={e => handleMeasurementChange(index, 'label', e.target.value)}
                             placeholder="e.g. Chest Width"
                           />
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.xs}
+                            value={measurement?.values?.xs || ''}
                             onChange={e => handleMeasurementChange(index, 'xs', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -278,7 +319,7 @@ const SizeGuideList = () => {
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.s}
+                            value={measurement?.values?.s || ''}
                             onChange={e => handleMeasurementChange(index, 's', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -286,7 +327,7 @@ const SizeGuideList = () => {
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.m}
+                            value={measurement?.values?.m || ''}
                             onChange={e => handleMeasurementChange(index, 'm', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -294,7 +335,7 @@ const SizeGuideList = () => {
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.l}
+                            value={measurement?.values?.l || ''}
                             onChange={e => handleMeasurementChange(index, 'l', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -302,7 +343,7 @@ const SizeGuideList = () => {
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.xl}
+                            value={measurement?.values?.xl || ''}
                             onChange={e => handleMeasurementChange(index, 'xl', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -310,7 +351,7 @@ const SizeGuideList = () => {
                         </td>
                         <td className="px-2 py-2 border-b">
                           <Input
-                            value={measurement.values.xxl}
+                            value={measurement?.values?.xxl || ''}
                             onChange={e => handleMeasurementChange(index, 'xxl', e.target.value)}
                             placeholder="cm"
                             style={{ width: '60px' }}
@@ -330,6 +371,8 @@ const SizeGuideList = () => {
                   </tbody>
                 </table>
               </div>
+            ) : (
+              <div className="text-center my-4">No measurements added yet. Click 'Add Measurement' to begin.</div>
             )}
           </div>
         </Form>

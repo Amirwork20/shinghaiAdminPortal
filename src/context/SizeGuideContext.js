@@ -23,11 +23,13 @@ export const SizeGuideProvider = ({ children }) => {
       const endpoint = includeInactive ? `${API_URL}/size-guides/admin/all` : `${API_URL}/size-guides/active`;
       
       const response = await axios.get(endpoint, { headers });
-      setSizeGuides(response.data);
-      return response.data;
+      const guides = Array.isArray(response.data) ? response.data : [];
+      setSizeGuides(guides);
+      return guides;
     } catch (error) {
       console.error('Error fetching size guides:', error);
       setError(error.message || 'Failed to fetch size guides');
+      setSizeGuides([]);
       return [];
     } finally {
       setIsLoading(false);
