@@ -51,6 +51,7 @@ const AddProduct = () => {
         ]);
       } catch (error) {
         console.error('Error loading data:', error);
+        message.error('Failed to load category data. Please refresh the page.');
       } finally {
         setIsLoading(false);
       }
@@ -59,9 +60,42 @@ const AddProduct = () => {
     loadData();
   }, [fetchMainCategories, fetchCategories, fetchSubCategories, fetchFabrics, fetchSizeGuides]);
 
+  useEffect(() => {
+    // Initialize or reset filtered categories when subCategories change
+    if (selectedSubCategory) {
+      // Check if categories is an array and filter safely
+      const filtered = Array.isArray(categories) 
+        ? categories.filter(cat => cat && cat.sub_category_id && cat.sub_category_id._id === selectedSubCategory)
+        : [];
+      setFilteredCategories(filtered);
+    } else {
+      setFilteredCategories([]);
+    }
+  }, [categories, selectedSubCategory]);
+
+  const handleMainCategoryChange = (mainCategoryId) => {
+    setSelectedMainCategory(mainCategoryId);
+    setSelectedSubCategory(null);
+    setFilteredCategories([]);
+    form.setFieldsValue({ 
+      sub_category_id: undefined, 
+      category_id: undefined 
+    });
+  };
+
   const handleSubCategoryChange = (subCategoryId) => {
+    if (!subCategoryId) {
+      setSelectedSubCategory(null);
+      setFilteredCategories([]);
+      form.setFieldsValue({ category_id: undefined });
+      return;
+    }
+    
     setSelectedSubCategory(subCategoryId);
-    const filtered = categories.filter(cat => cat.sub_category_id?._id === subCategoryId);
+    // Check if categories is an array and filter safely
+    const filtered = Array.isArray(categories) 
+      ? categories.filter(cat => cat && cat.sub_category_id && cat.sub_category_id._id === subCategoryId)
+      : [];
     setFilteredCategories(filtered);
     form.setFieldsValue({ category_id: undefined });
   };
@@ -83,49 +117,68 @@ const AddProduct = () => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
+      if (!values) {
+        throw new Error('Form values are missing');
+      }
+
+      // Validate that required fields are present
+      if (!values.category_id || !values.main_category_id || !values.sub_category_id) {
+        throw new Error('Category information is required');
+      }
+
+      // Validate image is present
+      if (!mainImageUrl) {
+        throw new Error('Main image is required');
+      }
+
       const formattedValues = formatProductData(values);
       await addProduct(formattedValues);
       message.success('Product added successfully');
       navigate('/dashboard/products');
     } catch (error) {
       console.error('Error adding product:', error);
-      message.error('Failed to add product: ' + error.message);
+      message.error(`Failed to add product: ${error.message || 'Unknown error occurred'}`);
     } finally {
       setLoading(false);
     }
   };
 
   const formatProductData = (values) => {
+    if (!values) return {};
+
+    // Safely handle attributes to prevent filter errors
     const formattedAttributes = Array.isArray(values.attributes) 
-      ? values.attributes.filter(attr => attr && attr.attribute_id && attr.values && attr.values.length > 0)
+      ? values.attributes.filter(attr => attr && attr.attribute_id && Array.isArray(attr.values) && attr.values.length > 0)
       : [];
 
     const {tabImages, mainImage, ...restValues} = values;
 
     // Ensure all URLs are strings
     const image_url = typeof mainImageUrl === 'string' ? mainImageUrl : null;
-    const tabs_image_url = tabImageUrls.map(url => {
-      if (typeof url === 'string') return url;
-      if (url && url.imageUrl) return url.imageUrl;
-      if (url && typeof url.toString === 'function') {
-        const str = url.toString();
-        if (str !== '[object Object]') return str;
-      }
-      return null;
-    }).filter(url => url !== null);
+    const tabs_image_url = Array.isArray(tabImageUrls) 
+      ? tabImageUrls.map(url => {
+          if (typeof url === 'string') return url;
+          if (url && url.imageUrl) return url.imageUrl;
+          if (url && typeof url.toString === 'function') {
+            const str = url.toString();
+            if (str !== '[object Object]') return str;
+          }
+          return null;
+        }).filter(url => url !== null)
+      : [];
 
     return {
       ...restValues,
       season: values.season || 'All Season',
-      fabric_id: values.fabric_id,
-      size_guide_id: values.size_guide_id,
-      actual_price: parseFloat(values.actual_price),
-      off_percentage_value: parseFloat(values.off_percentage_value),
-      price: parseFloat(values.price),
-      delivery_charges: parseFloat(values.delivery_charges),
-      quantity: parseInt(values.quantity),
-      max_quantity_per_user: parseInt(values.max_quantity_per_user),
-      sold: parseInt(values.sold),
+      fabric_id: values.fabric_id || null,
+      size_guide_id: values.size_guide_id || null,
+      actual_price: parseFloat(values.actual_price) || 0,
+      off_percentage_value: parseFloat(values.off_percentage_value) || 0,
+      price: parseFloat(values.price) || 0,
+      delivery_charges: parseFloat(values.delivery_charges) || 0,
+      quantity: parseInt(values.quantity) || 0,
+      max_quantity_per_user: parseInt(values.max_quantity_per_user) || 1,
+      sold: parseInt(values.sold) || 0,
       attributes: formattedAttributes,
       image_url: image_url,
       tabs_image_url: tabs_image_url,
@@ -246,18 +299,10 @@ const AddProduct = () => {
               <Form.Item name="main_category_id" label="Main Category" rules={[{ required: true }]}>
                 <Select
                   placeholder="Select main category" 
-                  onChange={(value) => {
-                    setSelectedMainCategory(value);
-                    form.setFieldsValue({ 
-                      sub_category_id: undefined, 
-                      category_id: undefined 
-                    });
-                    setSelectedSubCategory(null);
-                    setFilteredCategories([]);
-                  }}
+                  onChange={handleMainCategoryChange}
                   loading={isLoading}
                 >
-                  {mainCategories.map(cat => (
+                  {Array.isArray(mainCategories) && mainCategories.map(cat => (
                     <Option key={cat._id} value={cat._id}>
                       {cat.category_name}
                     </Option>
@@ -277,7 +322,7 @@ const AddProduct = () => {
                   onChange={handleSubCategoryChange}
                   loading={isLoading}
                 >
-                  {subCategories
+                  {Array.isArray(subCategories) && subCategories
                     .filter(cat => cat.main_category_id?._id === selectedMainCategory)
                     .map(cat => (
                       <Option key={cat._id} value={cat._id}>
@@ -298,7 +343,7 @@ const AddProduct = () => {
                   disabled={!selectedSubCategory}
                   loading={isLoading}
                 >
-                  {filteredCategories.map(cat => (
+                  {Array.isArray(filteredCategories) && filteredCategories.map(cat => (
                     <Option key={cat._id} value={cat._id}>
                       {cat.category_name}
                     </Option>
@@ -307,7 +352,7 @@ const AddProduct = () => {
               </Form.Item>
               <Form.Item name="fabric_id" label="Fabric">
                 <Select placeholder="Select fabric" allowClear>
-                  {fabrics
+                  {Array.isArray(fabrics) && fabrics
                     .filter(fabric => fabric.is_active)
                     .map(fabric => (
                       <Option key={fabric._id} value={fabric._id}>
@@ -318,7 +363,7 @@ const AddProduct = () => {
               </Form.Item>
               <Form.Item name="size_guide_id" label="Size Guide">
                 <Select placeholder="Select size guide" allowClear>
-                  {sizeGuides
+                  {Array.isArray(sizeGuides) && sizeGuides
                     .filter(guide => guide.is_active)
                     .map(guide => (
                       <Option key={guide._id} value={guide._id}>
@@ -394,7 +439,7 @@ const AddProduct = () => {
             <Form.List name="attributes">
               {(fields, { add, remove }) => (
                 <>
-                  {fields.map(({ key, name, ...restField }) => (
+                  {Array.isArray(fields) && fields.map(({ key, name, ...restField }) => (
                     <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline" direction="vertical">
                       <Space>
                         <Form.Item
@@ -403,7 +448,7 @@ const AddProduct = () => {
                           rules={[{ required: true, message: 'Missing attribute' }]}
                         >
                           <Select style={{ width: 130 }} placeholder="Attribute">
-                            {attributes.map(attr => (
+                            {Array.isArray(attributes) && attributes.map(attr => (
                               <Option key={attr._id} value={attr._id}>{attr.attribute_name}</Option>
                             ))}
                           </Select>
@@ -413,7 +458,7 @@ const AddProduct = () => {
                       <Form.List name={[name, 'values']}>
                         {(subFields, subOps) => (
                           <>
-                            {subFields.map((subField, index) => (
+                            {Array.isArray(subFields) && subFields.map((subField, index) => (
                               <Space key={subField.key}>
                                 <Form.Item
                                   {...subField}
