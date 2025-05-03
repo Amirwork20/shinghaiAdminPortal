@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useLandingImages } from '../../context/LandingImagesContext';
 import { useProduct } from '../../context/ProductContext';
-import { message, Button, Upload, Spin, Layout, Modal, Tabs, Select, Card, Badge, Tooltip, Progress } from 'antd';
-import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined, InfoCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import { message, Button, Upload, Spin, Layout, Modal, Tabs, Select, Card, Badge, Tooltip, Progress, Radio } from 'antd';
+import { UploadOutlined, LoadingOutlined, VideoCameraOutlined, PictureOutlined, InfoCircleOutlined, DeleteOutlined, MobileOutlined, DesktopOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 const { Option } = Select;
@@ -16,6 +16,8 @@ const LandingImages = () => {
   const [previewType, setPreviewType] = useState('image');
   const [mediaItems, setMediaItems] = useState([]);
   const [optimizationStats, setOptimizationStats] = useState(null);
+  const [viewTypeFilter, setViewTypeFilter] = useState('all'); // Filter for media list
+  const [selectedViewType, setSelectedViewType] = useState('both'); // For new uploads
   const { uploadImage, uploadVideo, deleteImage, deleteVideo } = useProduct();
   const { 
     landingImages = [], 
@@ -71,6 +73,11 @@ const LandingImages = () => {
     return <div>Error: LandingImages context not found</div>;
   }
 
+  // Checks if media with same URL already exists to prevent duplicates
+  const isMediaDuplicate = (url) => {
+    return mediaItems.some(item => item.url === url);
+  };
+
   const handleImageUpload = async (info) => {
     const { status, originFileObj } = info.file;
     if (status === 'uploading') {
@@ -112,10 +119,17 @@ const LandingImages = () => {
           };
         }
         
+        // Check for duplicate before adding
+        if (isMediaDuplicate(url)) {
+          message.warning(`This image is already in your media library`);
+          return;
+        }
+        
         // Add the new media with all available metadata
         const newMediaItem = { 
           url, 
           type: 'image',
+          viewType: selectedViewType, // Add the selected view type
           ...(placeholderUrl && { placeholderUrl }),
           ...(optimizationMeta && { optimizationMeta })
         };
@@ -191,10 +205,17 @@ const LandingImages = () => {
           };
         }
         
+        // Check for duplicate before adding
+        if (isMediaDuplicate(url)) {
+          message.warning(`This video is already in your media library`);
+          return;
+        }
+        
         // Add the new media with all available metadata
         const newMediaItem = { 
           url, 
           type: 'video',
+          viewType: selectedViewType, // Add the selected view type
           ...(posterUrl && { posterUrl }),
           ...(optimizationMeta && { optimizationMeta })
         };
@@ -264,53 +285,127 @@ const LandingImages = () => {
   };
 
   const handleSave = async () => {
-    try {
-      // Get the previous media items from the server
-      const previousMediaItems = landingMedia.length > 0 ? landingMedia : 
-                               landingImages.map(url => ({ url, type: 'image' }));
-      
-      // Find media items that were removed by the user
-      const removedMediaItems = previousMediaItems.filter(prevItem => 
-        !mediaItems.some(currentItem => currentItem.url === prevItem.url)
-      );
-      
-      // Delete each removed item from S3
-      for (const item of removedMediaItems) {
+    // Show confirmation modal before saving
+    Modal.confirm({
+      title: 'Save Changes',
+      content: 'Are you sure you want to save your changes? This will update the media shown on your landing page.',
+      okText: 'Save',
+      cancelText: 'Cancel',
+      onOk: async () => {
         try {
-          const fileName = item.url.split('/').pop();
-          
           // Show loading message
           message.loading({
-            content: `Cleaning up ${item.type} ${fileName}...`,
-            key: `delete-${fileName}`,
+            content: 'Saving media items...',
+            key: 'savingMedia',
             duration: 0
           });
           
-          if (item.type === 'video') {
-            await deleteVideo(item.url);
-            console.log(`Deleted video from S3:`, fileName);
-          } else {
-            await deleteImage(item.url);
-            console.log(`Deleted image from S3:`, fileName);
+          // Get the previous media items from the server
+          const previousMediaItems = landingMedia.length > 0 ? landingMedia : 
+                                  landingImages.map(url => ({ url, type: 'image' }));
+          
+          // Find media items that were removed by the user
+          const removedMediaItems = previousMediaItems.filter(prevItem => 
+            !mediaItems.some(currentItem => currentItem.url === prevItem.url)
+          );
+          
+          // Delete each removed item from S3
+          for (const item of removedMediaItems) {
+            try {
+              const fileName = item.url.split('/').pop();
+              
+              // Show loading message
+              message.loading({
+                content: `Cleaning up ${item.type} ${fileName}...`,
+                key: `delete-${fileName}`,
+                duration: 0
+              });
+              
+              if (item.type === 'video') {
+                await deleteVideo(item.url);
+                console.log(`Deleted video from S3:`, fileName);
+              } else {
+                await deleteImage(item.url);
+                console.log(`Deleted image from S3:`, fileName);
+              }
+              
+              message.success({
+                content: `${item.type === 'video' ? 'Video' : 'Image'} ${fileName} removed.`,
+                key: `delete-${fileName}`,
+                duration: 2
+              });
+            } catch (err) {
+              console.error(`Failed to delete ${item.type} from S3:`, err);
+              // Continue with other deletions even if one fails
+            }
           }
           
-          message.success({
-            content: `${item.type === 'video' ? 'Video' : 'Image'} ${fileName} removed.`,
-            key: `delete-${fileName}`,
-            duration: 2
-          });
+          // Compare media items to detect if we're trying to save the exact same content
+          const mediaItemsJson = JSON.stringify(mediaItems.map(item => item.url));
+          const previousMediaItemsJson = JSON.stringify(previousMediaItems.map(item => item.url));
+          
+          // Only save if there are actual changes to avoid unnecessary API calls
+          if (mediaItemsJson !== previousMediaItemsJson) {
+            // Save the updated media list
+            await saveLandingImages(mediaItems);
+            message.success({
+              content: 'Landing media saved successfully',
+              key: 'savingMedia'
+            });
+          } else {
+            // If no changes, just show success without calling API
+            message.success({
+              content: 'No changes to save',
+              key: 'savingMedia'
+            });
+          }
         } catch (err) {
-          console.error(`Failed to delete ${item.type} from S3:`, err);
-          // Continue with other deletions even if one fails
+          console.error('Failed to save landing media:', err);
+          message.error({
+            content: `Failed to save landing media: ${err.message || 'Unknown error'}`,
+            key: 'savingMedia'
+          });
         }
       }
-      
-      // Save the updated media list
-      await saveLandingImages(mediaItems);
-      message.success('Landing media saved successfully');
-    } catch (err) {
-      console.error('Failed to save landing media:', err);
-      message.error(`Failed to save landing media: ${err.message || 'Unknown error'}`);
+    });
+  };
+
+  // Returns the filter media items based on the selected filter
+  const getFilteredMediaItems = () => {
+    if (viewTypeFilter === 'all') {
+      return mediaItems;
+    }
+    
+    return mediaItems.filter(item => 
+      item.viewType === viewTypeFilter || 
+      item.viewType === 'both' || 
+      !item.viewType // Handle legacy items without viewType
+    );
+  };
+
+  // Get the badge color for view type
+  const getViewTypeBadge = (viewType) => {
+    switch (viewType) {
+      case 'mobile':
+        return '#1890ff'; // Blue
+      case 'desktop':
+        return '#722ed1'; // Purple
+      case 'both':
+      default:
+        return '#52c41a'; // Green
+    }
+  };
+
+  // Get the display name for view type
+  const getViewTypeDisplay = (viewType) => {
+    switch (viewType) {
+      case 'mobile':
+        return 'Mobile';
+      case 'desktop':
+        return 'Desktop';
+      case 'both':
+      default:
+        return 'Both';
     }
   };
 
@@ -347,6 +442,8 @@ const LandingImages = () => {
     
     return null; // Use default image preview
   };
+
+  const filteredMediaItems = getFilteredMediaItems();
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -396,8 +493,46 @@ const LandingImages = () => {
             </div>
           )}
           
+          {/* Single Device Type Selector */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center">
+              <span className="text-sm mr-2">Device Type:</span>
+              <Radio.Group 
+                value={selectedViewType} 
+                onChange={e => {
+                  // Update both the upload selection and the filter
+                  setSelectedViewType(e.target.value);
+                  if (e.target.value === 'both') {
+                    setViewTypeFilter('all');
+                  } else {
+                    setViewTypeFilter(e.target.value);
+                  }
+                }}
+                buttonStyle="solid"
+                size="small"
+              >
+                <Radio.Button value="mobile">
+                  <MobileOutlined className="mr-1" /> Mobile
+                </Radio.Button>
+                <Radio.Button value="desktop">
+                  <DesktopOutlined className="mr-1" /> Desktop
+                </Radio.Button>
+                <Radio.Button value="both">
+                  <span className="mr-1">👥</span> Both
+                </Radio.Button>
+              </Radio.Group>
+            </div>
+          </div>
+          
           <Tabs defaultActiveKey="all">
-            <TabPane tab="All Media" key="all">
+            <TabPane 
+              tab={
+                <span>
+                  <PictureOutlined /> All Media
+                </span>
+              } 
+              key="all"
+            >
               <div className="mb-4">
                 <div className="flex flex-wrap gap-4 mb-4">
                   <Upload
@@ -448,7 +583,7 @@ const LandingImages = () => {
                 )}
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {mediaItems.map((item, index) => (
+                  {filteredMediaItems.map((item, index) => (
                     <Card
                       key={index}
                       hoverable
@@ -475,6 +610,13 @@ const LandingImages = () => {
                                     handleDeleteMedia(item.url, 'video');
                                   }}
                                 />
+                                {item.viewType && (
+                                  <Badge 
+                                    count={getViewTypeDisplay(item.viewType)}
+                                    style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                    className="absolute top-2 left-2"
+                                  />
+                                )}
                               </div>
                             ) : (
                               <>
@@ -489,6 +631,13 @@ const LandingImages = () => {
                                     handleDeleteMedia(item.url, 'video');
                                   }}
                                 />
+                                {item.viewType && (
+                                  <Badge 
+                                    count={getViewTypeDisplay(item.viewType)}
+                                    style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                    className="absolute top-2 left-2"
+                                  />
+                                )}
                               </>
                             )}
                           </div>
@@ -509,11 +658,18 @@ const LandingImages = () => {
                                 handleDeleteMedia(item.url, 'image');
                               }}
                             />
+                            {item.viewType && (
+                              <Badge 
+                                count={getViewTypeDisplay(item.viewType)}
+                                style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                className="absolute top-2 left-2"
+                              />
+                            )}
                             {item.placeholderUrl && (
                               <Badge 
                                 count="Optimized" 
                                 style={{ backgroundColor: '#52c41a' }}
-                                className="absolute top-2 left-2"
+                                className="absolute bottom-2 left-2"
                               />
                             )}
                           </div>
@@ -551,185 +707,224 @@ const LandingImages = () => {
               </div>
             </TabPane>
             
-            <TabPane tab="Images" key="images">
-              <div className="flex mb-4">
-                <Upload
-                  accept="image/*"
-                  customRequest={({ file, onSuccess, onError }) => {
-                    handleImageUpload({ file: { ...file, status: 'done', originFileObj: file } })
-                      .then(() => onSuccess('ok'))
-                      .catch(error => onError(error));
-                  }}
-                  showUploadList={false}
-                  disabled={uploadingImage || uploadingVideo}
-                >
-                  <Button 
-                    icon={uploadingImage ? <LoadingOutlined /> : <PictureOutlined />}
+            <TabPane 
+              tab={
+                <span>
+                  <PictureOutlined /> Images
+                </span>
+              } 
+              key="images"
+            >
+              <div className="mb-4">
+                <div className="flex mb-4">
+                  <Upload
+                    accept="image/*"
+                    customRequest={({ file, onSuccess, onError }) => {
+                      handleImageUpload({ file: { ...file, status: 'done', originFileObj: file } })
+                        .then(() => onSuccess('ok'))
+                        .catch(error => onError(error));
+                    }}
+                    showUploadList={false}
                     disabled={uploadingImage || uploadingVideo}
                   >
-                    {uploadingImage ? 'Uploading...' : 'Upload Image'}
-                  </Button>
-                </Upload>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {mediaItems
-                  .filter(item => item.type === 'image')
-                  .map((item, index) => (
-                    <Card
-                      key={index}
-                      hoverable
-                      cover={
-                        <div className="relative">
-                          <img 
-                            alt={`image-${index}`} 
-                            src={item.url} 
-                            className="h-32 w-full object-cover"
-                          />
-                          <Button
-                            icon={<DeleteOutlined />}
-                            danger
-                            size="small"
-                            style={{ position: 'absolute', top: 5, right: 5 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteMedia(item.url, 'image');
-                            }}
-                          />
-                          {item.placeholderUrl && (
-                            <Badge 
-                              count="Optimized" 
-                              style={{ backgroundColor: '#52c41a' }}
-                              className="absolute top-2 left-2"
-                            />
-                          )}
-                        </div>
-                      }
-                      actions={[
-                        <Button type="link" onClick={() => handlePreview(item)}>
-                          Preview
-                        </Button>,
-                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'image')}>
-                          Delete
-                        </Button>
-                      ]}
+                    <Button 
+                      icon={uploadingImage ? <LoadingOutlined /> : <PictureOutlined />}
+                      disabled={uploadingImage || uploadingVideo}
                     >
-                      {item.optimizationMeta && (
-                        <div className="text-xs text-gray-500">
-                          Saved: {Math.round((1 - (item.optimizationMeta.optimizedSize / item.optimizationMeta.originalSize)) * 100)}%
-                        </div>
-                      )}
-                    </Card>
-                  ))}
+                      {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                    </Button>
+                  </Upload>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filteredMediaItems
+                    .filter(item => item.type === 'image')
+                    .map((item, index) => (
+                      <Card
+                        key={index}
+                        hoverable
+                        cover={
+                          <div className="relative">
+                            <img 
+                              alt={`image-${index}`} 
+                              src={item.url} 
+                              className="h-32 w-full object-cover"
+                            />
+                            <Button
+                              icon={<DeleteOutlined />}
+                              danger
+                              size="small"
+                              style={{ position: 'absolute', top: 5, right: 5 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMedia(item.url, 'image');
+                              }}
+                            />
+                            {item.viewType && (
+                              <Badge 
+                                count={getViewTypeDisplay(item.viewType)}
+                                style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                className="absolute top-2 left-2"
+                              />
+                            )}
+                            {item.placeholderUrl && (
+                              <Badge 
+                                count="Optimized" 
+                                style={{ backgroundColor: '#52c41a' }}
+                                className="absolute bottom-2 left-2"
+                              />
+                            )}
+                          </div>
+                        }
+                        actions={[
+                          <Button type="link" onClick={() => handlePreview(item)}>
+                            Preview
+                          </Button>,
+                          <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'image')}>
+                            Delete
+                          </Button>
+                        ]}
+                      >
+                        {item.optimizationMeta && (
+                          <div className="text-xs text-gray-500">
+                            Saved: {Math.round((1 - (item.optimizationMeta.optimizedSize / item.optimizationMeta.originalSize)) * 100)}%
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                </div>
               </div>
             </TabPane>
             
-            <TabPane tab="Videos" key="videos">
-              <div className="flex mb-4">
-                <Upload
-                  accept="video/*"
-                  customRequest={({ file, onSuccess, onError }) => {
-                    handleVideoUpload({ file: { ...file, status: 'done', originFileObj: file } })
-                      .then(() => onSuccess('ok'))
-                      .catch(error => onError(error));
-                  }}
-                  showUploadList={false}
-                  disabled={uploadingImage || uploadingVideo}
-                >
-                  <Button 
-                    icon={uploadingVideo ? <LoadingOutlined /> : <VideoCameraOutlined />}
+            <TabPane 
+              tab={
+                <span>
+                  <VideoCameraOutlined /> Videos
+                </span>
+              } 
+              key="videos"
+            >
+              <div className="mb-4">
+                <div className="flex mb-4">
+                  <Upload
+                    accept="video/*"
+                    customRequest={({ file, onSuccess, onError }) => {
+                      handleVideoUpload({ file: { ...file, status: 'done', originFileObj: file } })
+                        .then(() => onSuccess('ok'))
+                        .catch(error => onError(error));
+                    }}
+                    showUploadList={false}
                     disabled={uploadingImage || uploadingVideo}
                   >
-                    {uploadingVideo ? 'Processing Video...' : 'Upload Video'}
-                  </Button>
-                </Upload>
-              </div>
-              
-              {uploadingVideo && (
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center">
-                  <Spin className="mr-3" />
-                  <div>
-                    <p className="font-medium">Video processing in progress</p>
-                    <p className="text-sm text-gray-500">This may take a minute or two depending on the video size.</p>
-                  </div>
+                    <Button 
+                      icon={uploadingVideo ? <LoadingOutlined /> : <VideoCameraOutlined />}
+                      disabled={uploadingImage || uploadingVideo}
+                    >
+                      {uploadingVideo ? 'Processing Video...' : 'Upload Video'}
+                    </Button>
+                  </Upload>
                 </div>
-              )}
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {mediaItems
-                  .filter(item => item.type === 'video')
-                  .map((item, index) => (
-                    <Card
-                      key={index}
-                      hoverable
-                      cover={
-                        <div className="h-32 bg-gray-100 flex items-center justify-center relative">
-                          {item.posterUrl ? (
-                            <div className="relative w-full h-full">
-                              <img 
-                                src={item.posterUrl} 
-                                alt="Video poster" 
-                                className="h-32 w-full object-cover"
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-                                <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
+                
+                {uploadingVideo && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center">
+                    <Spin className="mr-3" />
+                    <div>
+                      <p className="font-medium">Video processing in progress</p>
+                      <p className="text-sm text-gray-500">This may take a minute or two depending on the video size.</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {filteredMediaItems
+                    .filter(item => item.type === 'video')
+                    .map((item, index) => (
+                      <Card
+                        key={index}
+                        hoverable
+                        cover={
+                          <div className="h-32 bg-gray-100 flex items-center justify-center relative">
+                            {item.posterUrl ? (
+                              <div className="relative w-full h-full">
+                                <img 
+                                  src={item.posterUrl} 
+                                  alt="Video poster" 
+                                  className="h-32 w-full object-cover"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                                  <VideoCameraOutlined style={{ fontSize: 32, color: 'white' }} />
+                                </div>
+                                <Button
+                                  icon={<DeleteOutlined />}
+                                  danger
+                                  size="small"
+                                  style={{ position: 'absolute', top: 5, right: 5 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteMedia(item.url, 'video');
+                                  }}
+                                />
+                                {item.viewType && (
+                                  <Badge 
+                                    count={getViewTypeDisplay(item.viewType)}
+                                    style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                    className="absolute top-2 left-2"
+                                  />
+                                )}
                               </div>
-                              <Button
-                                icon={<DeleteOutlined />}
-                                danger
-                                size="small"
-                                style={{ position: 'absolute', top: 5, right: 5 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteMedia(item.url, 'video');
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <>
-                              <VideoCameraOutlined style={{ fontSize: 32 }} />
-                              <Button
-                                icon={<DeleteOutlined />}
-                                danger
-                                size="small"
-                                style={{ position: 'absolute', top: 5, right: 5 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteMedia(item.url, 'video');
-                                }}
-                              />
-                            </>
+                            ) : (
+                              <>
+                                <VideoCameraOutlined style={{ fontSize: 32 }} />
+                                <Button
+                                  icon={<DeleteOutlined />}
+                                  danger
+                                  size="small"
+                                  style={{ position: 'absolute', top: 5, right: 5 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteMedia(item.url, 'video');
+                                  }}
+                                />
+                                {item.viewType && (
+                                  <Badge 
+                                    count={getViewTypeDisplay(item.viewType)}
+                                    style={{ backgroundColor: getViewTypeBadge(item.viewType) }}
+                                    className="absolute top-2 left-2"
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
+                        }
+                        actions={[
+                          <Button type="link" onClick={() => handlePreview(item)}>
+                            Preview
+                          </Button>,
+                          <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'video')}>
+                            Delete
+                          </Button>
+                        ]}
+                      >
+                        <div className="text-xs truncate flex justify-between">
+                          <span>{item.url.split('/').pop()}</span>
+                          {item.optimizationMeta && (
+                            <Tooltip title={
+                              item.optimizationMeta.optimizationWarning 
+                                ? `Warning: ${item.optimizationMeta.optimizationWarning}` 
+                                : `Original: ${formatFileSize(item.optimizationMeta.originalSize)}, Optimized: ${formatFileSize(item.optimizationMeta.optimizedSize)}`
+                            }>
+                              <InfoCircleOutlined className={item.optimizationMeta.optimizationWarning ? "text-orange-500" : "text-blue-500"} />
+                            </Tooltip>
                           )}
                         </div>
-                      }
-                      actions={[
-                        <Button type="link" onClick={() => handlePreview(item)}>
-                          Preview
-                        </Button>,
-                        <Button type="link" danger onClick={() => handleDeleteMedia(item.url, 'video')}>
-                          Delete
-                        </Button>
-                      ]}
-                    >
-                      <div className="text-xs truncate flex justify-between">
-                        <span>{item.url.split('/').pop()}</span>
-                        {item.optimizationMeta && (
-                          <Tooltip title={
-                            item.optimizationMeta.optimizationWarning 
-                              ? `Warning: ${item.optimizationMeta.optimizationWarning}` 
-                              : `Original: ${formatFileSize(item.optimizationMeta.originalSize)}, Optimized: ${formatFileSize(item.optimizationMeta.optimizedSize)}`
-                          }>
-                            <InfoCircleOutlined className={item.optimizationMeta.optimizationWarning ? "text-orange-500" : "text-blue-500"} />
-                          </Tooltip>
+                        {item.optimizationMeta?.optimizationWarning && (
+                          <div className="text-xs text-orange-500 mt-1">
+                            Optimization skipped
+                          </div>
                         )}
-                      </div>
-                      {item.optimizationMeta?.optimizationWarning && (
-                        <div className="text-xs text-orange-500 mt-1">
-                          Optimization skipped
-                        </div>
-                      )}
-                    </Card>
-                  ))}
+                      </Card>
+                    ))}
+                </div>
               </div>
             </TabPane>
           </Tabs>

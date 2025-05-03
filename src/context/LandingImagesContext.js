@@ -60,7 +60,7 @@ export const LandingImagesProvider = ({ children }) => {
         dataToSend.media = dataToSend.media.map(item => {
           // If it's just a string URL, convert to object
           if (typeof item === 'string') {
-            return { url: item, type: 'image' };
+            return { url: item, type: 'image', viewType: 'both' };
           }
           
           // Ensure all video items have required properties
@@ -69,14 +69,20 @@ export const LandingImagesProvider = ({ children }) => {
             return null;
           }
           
+          // Make sure viewType exists
+          if (!item.viewType) {
+            return { ...item, viewType: 'both' };
+          }
+          
           return item;
         }).filter(Boolean); // Remove any null items
       }
       
       console.log('Saving landing media:', dataToSend);
       
+      // Use updateLandingImages endpoint instead of add endpoint
       const response = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/landing-images/add`,
+        `${process.env.REACT_APP_BACKEND_URL}/landing-images/update`,
         dataToSend,
         { headers }
       );
@@ -85,6 +91,8 @@ export const LandingImagesProvider = ({ children }) => {
       setLandingImages(response.data.images || []);
       setLandingMedia(response.data.media || []);
       setError(null);
+      
+      return response.data;
     } catch (err) {
       console.error('Error saving landing media:', err);
       setError(err.message);
